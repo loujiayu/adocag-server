@@ -84,7 +84,7 @@ class AzureDevOpsSearch:
         # Select appropriate credential based on environment
         if environment == 'production' or environment == 'prod':
             # Use Managed Identity for production environments
-            credential = ManagedIdentityCredential()
+            credential = ManagedIdentityCredential(client_id=os.getenv('CLIENT_ID'))
             print("Using ManagedIdentityCredential for production environment")
         else:
             # Use Interactive Browser for development environments
