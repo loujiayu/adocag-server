@@ -16,7 +16,7 @@ class HealthResource(Resource):
         """
         return {
             'status': 'healthy',
-            'timestamp': datetime.datetime.now().isoformat,
+            'timestamp': datetime.datetime.now().isoformat(),
             'service': 'server-api',
             'azure_devops_client': {
                 'organization': self.azure_devops_client.organization,
