@@ -31,6 +31,14 @@ def create_app():
     from app.resources.chat import ChatResource
     from app.resources.note import NoteResource
     from app.resources.health import HealthResource
+    from app.resources.home import HomeResource
+    
+    # Root endpoint
+    api.add_resource(HomeResource,
+                     '/',
+                     resource_class_kwargs={
+                         'azure_devops_client': azure_devops_client
+                     })
     
     # File list endpoint
     api.add_resource(DocumentSearchResource,
