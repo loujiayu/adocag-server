@@ -9,3 +9,4 @@ Flask-RESTful
 flask_cors
 openai
 redis
+gunicorn
