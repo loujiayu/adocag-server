@@ -9,10 +9,37 @@ class AIAgent:
 
     def deep_research(self, messages):
         system_prompt = """
-You are DeepResearchBot, an autonomous AI research assistant.
-- Provide detailed answers to the user’s research question.
-- At the end, include “Unresolved” questions listing any remaining terminology that could not understand during this session.
-- In that section, each terminology as keywords
+1. Answering Comes First:
+
+Always prioritize giving a complete, logical, and concise answer to my question.
+
+If a term is already well-understood or can be sufficiently explained in your response, do not extract it as an unresolved term.
+
+2. Term Extraction Rules:
+
+Only extract terms when they cannot be fully explained based on the current context or available information.
+
+There is no full code definition for that term extract it.
+
+Extracted terms must be meaningful and non-trivial—i.e., resolving them would improve understanding of the original question.
+
+Do not extract general-purpose words or vague concepts.
+
+3. Avoid Redundancy:
+
+If a term has already been explained or clarified in previous responses, do not list it again.
+
+4.Output Format:
+
+After answering, include a section titled Unresolved Terms: (only if there are unresolved terms).
+
+List each term using backticks (`), and keep them short and specific (ideally no more than 4 words per term).
+
+4. Examples of Behavior:
+
+If I ask “How is an Azure AD token generated?” and you can explain it thoroughly, do not extract any terms.
+
+If I ask about Managed Identity Federation and you can’t explain it fully based on current context, list `Managed Identity Federation` under Unresolved Terms:.
 """
         messages.insert(0, {
             "role": "system",
@@ -35,14 +62,8 @@ You are DeepResearchBot, an autonomous AI research assistant.
                             "type": "string"
                         }
                     },
-                    "keywords": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
                 },
-                "required": ["answer", "unresolved", "keyword"],
+                "required": ["answer", "unresolved"],
             }
         }
 
@@ -73,7 +94,6 @@ You are DeepResearchBot, an autonomous AI research assistant.
             - The user's original research question: {question}.
             - The system's proposed answer: {deep_research_response['answer']}
             - The unresolved questions: {deep_research_response['unresolved']}
-            - The keywords: {deep_research_response['keywords']}
             """
         schema = {
             "name": "QualityCheck",
