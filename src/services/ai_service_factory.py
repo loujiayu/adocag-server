@@ -37,15 +37,15 @@ class AIServiceFactory:
             # Extract Azure OpenAI specific parameters
             azure_endpoint = get_param(
                 "azure_endpoint", 
-                "AZURE_OPENAI_ENDPOINT_GPT41", 
+                "AZURE_OPENAI_ENDPOINT", 
             )
             api_key = get_param(
                 "azure_api_key", 
-                "AZURE_OPENAI_KEY_GPT41", 
+                "AZURE_OPENAI_KEY", 
             )
             deployment_name = get_param(
                 "azure_model", 
-                "AZURE_OPENAI_DEPLOYMENT_NAME_GPT41", 
+                "AZURE_OPENAI_DEPLOYMENT_NAME", 
             )
             
             # Create and return an Azure OpenAI service instance
@@ -67,15 +67,15 @@ class AIServiceFactory:
             logging.warning(f"Unknown API provider '{api_provider}', defaulting to Azure OpenAI")
             azure_endpoint = get_param(
                 "azure_endpoint", 
-                "AZURE_OPENAI_ENDPOINT_GPT41", 
+                "AZURE_OPENAI_ENDPOINT", 
             )
             api_key = get_param(
                 "api_key", 
-                "AZURE_OPENAI_KEY_GPT41", 
+                "AZURE_OPENAI_KEY", 
             )
             deployment_name = get_param(
                 "deployment_name", 
-                "AZURE_OPENAI_DEPLOYMENT_NAME_GPT41", 
+                "AZURE_OPENAI_DEPLOYMENT_NAME", 
             )
             
             return AzureOpenAIService(
