@@ -214,6 +214,147 @@ class SearchUtilities:
         
         return result
 
+    def yield_file_content_from_results(self, results: Dict, query: str, max_length: int):
+        """
+        Generator function that yields content of files from search results as they are processed
+        
+        Args:
+            results: Search results from search_code or search_repositories
+            query: Optional search query to use for file rating
+            max_length: Maximum number of characters to retrieve
+            
+        Yields:
+            Dictionary containing individual file content and status
+        """
+        if results["status"] != "success" or results["count"] == 0:
+            yield {
+                "status": "error",
+                "message": "No results found or search failed",
+                "search_text": results.get("search_text", ""),
+                "is_final": True
+            }
+            return
+        
+        total_length = 0
+        processed_count = 0
+        
+        print(f"Processing {len(results['results'])} search results")
+
+        for result in results["results"]:
+            # Extract repository name, file path, and branch
+            repository = result.repository.name if hasattr(result, 'repository') and hasattr(result.repository, 'name') else None
+            file_path = result.path if hasattr(result, 'path') else None
+            file_name = result.file_name if hasattr(result, 'file_name') else None
+            branch = getattr(result, 'branch', 'master')
+            
+            if not repository or not file_path:
+                # Skip this result if repository or file path is missing
+                continue
+            
+            # Use file path directly as cache key, nothing else
+            cache_key = file_path
+            content_result = None
+            
+            if self.cache_enabled and self.cache:
+                # Try to get file content from cache
+                content_result = self.cache.get(cache_key)
+                if content_result:
+                    print(f"Cache hit for file: {cache_key}")
+                else:
+                    print(f"Cache miss for file: {cache_key}")
+                    # Get file content from repository
+                    content_result = self.search_client.get_file_content(repository, file_path, branch)
+                    # Cache file content
+                    if content_result["status"] == "success":
+                        self.cache.set(cache_key, content_result, self.content_cache_ttl)
+                        print(f"Cached file content for: {cache_key}")
+            else:
+                # Get file content from repository
+                content_result = self.search_client.get_file_content(repository, file_path, branch)
+            
+            # Rate the file if AI agent is available
+            rate = self.rating_threshold  # Default rating if no AI agent
+            rating_cache_key = f"{query}-rate:{file_path}"
+            
+            if self.ai_agent and query:
+                # Try to get rating from cache first
+                if self.cache_enabled and self.cache:
+                    cached_rating = self.cache.get(rating_cache_key)
+                    if cached_rating is not None:
+                        print(f"Cache hit for rating: {rating_cache_key}")
+                        rate = cached_rating
+                    else:
+                        # Get rating from AI agent
+                        rating_result = self.ai_agent.rate_single_file(content_result, query=query)
+                        try:
+                            rate = int(rating_result.get("response", "0"))
+                            # Cache the rating
+                            self.cache.set(rating_cache_key, rate, self.rate_cache_ttl)
+                            print(f"Cached rating for: {rating_cache_key}")
+                        except (ValueError, TypeError):
+                            rate = 0
+                else:
+                    # Get rating directly from AI agent
+                    rating_result = self.ai_agent.rate_single_file(content_result, query=query)
+                    try:
+                        rate = int(rating_result.get("response", "0"))
+                    except (ValueError, TypeError):
+                        rate = 0
+
+            if rate < self.rating_threshold:
+                print(f"Skipping file {file_path} with rating {rate}")
+                continue
+
+            print(f"Processing file {file_path} with rating {rate}")
+            processed_count += 1
+            
+            if content_result["status"] == "success":
+                content_length = len(content_result["content"])
+                
+                # Skip files larger than 200K characters
+                if content_length > 200000:
+                    print(f"Skipping large file {file_path}: {content_length} characters")
+                    continue
+                
+                # Check if adding this file would exceed the length limit
+                if total_length + content_length > max_length:
+                    print(f"Length limit reached ({total_length}/{max_length}). Stopping content retrieval.")
+                    # Yield final message
+                    yield {
+                        "status": "success",
+                        "message": "Length limit reached",
+                        "is_final": True,
+                        "total_processed": processed_count,
+                        "total_length": total_length,
+                        "max_length": max_length
+                    }
+                    return
+                
+                total_length += content_length
+                print(f"Total Length: {total_length}/{max_length}, Files: {processed_count}")
+                
+                # Add file path to content result for reference
+                content_result["file_path"] = file_path
+                content_result['file_name'] = file_name
+                content_result["repository"] = repository
+                content_result["branch"] = branch
+                content_result["is_final"] = False
+                content_result["total_processed"] = processed_count
+                content_result["total_length"] = total_length
+                
+                # Yield this file's content
+                yield content_result
+            else:
+                # Log the error for this file
+                print(f"Error fetching content for {file_path}: {content_result.get('message', 'Unknown error')}")
+        
+        # Yield final status after processing all results
+        yield {
+            "status": "success",
+            "message": "All files processed",
+            "is_final": True,
+        }
+
     def combine_search_results_with_wiki(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
         """
         Perform a comprehensive search including code repositories and wiki
