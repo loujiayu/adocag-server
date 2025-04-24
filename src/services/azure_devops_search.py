@@ -72,7 +72,7 @@ class AzureDevOpsSearch:
             ),
             "AdsAppsCampaignUI": RepositorySearchConfig(
                 name="AdsAppsCampaignUI",
-                search_prefix="(ext:js OR ext:ts)",
+                search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
                 excluded_paths=['test', 'suite', 'tapi', 'demo']
             )
             # Add more repository configurations as needed
