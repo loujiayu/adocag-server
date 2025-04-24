@@ -140,7 +140,7 @@ class SearchUtilities:
             
             # Rate the file if AI agent is available
             rate = self.rating_threshold  # Default rating if no AI agent
-            rating_cache_key = f"{query}-rate:{file_path}"
+            rating_cache_key = f"{query.lower()}-rate:{file_path}"
             
             if self.ai_agent and query:
                 # Try to get rating from cache first
@@ -274,7 +274,7 @@ class SearchUtilities:
             
             # Rate the file if AI agent is available
             rate = self.rating_threshold  # Default rating if no AI agent
-            rating_cache_key = f"{query}-rate:{file_path}"
+            rating_cache_key = f"{query.lower()}-rate:{file_path}"
             
             if self.ai_agent and query:
                 # Try to get rating from cache first
