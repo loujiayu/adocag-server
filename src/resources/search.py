@@ -1,8 +1,8 @@
 from flask_restful import Resource
 from flask import jsonify, request
-from app.services.ai_service_factory import AIServiceFactory
-from app.services.agents import AIAgent
-from app.services.search_utilities import SearchUtilities
+from src.services.ai_service_factory import AIServiceFactory
+from src.services.agents import AIAgent
+from src.services.search_utilities import SearchUtilities
 
 class DocumentSearchResource(Resource):
     def __init__(self, azure_devops_client, method_type, **kwargs):

@@ -1,7 +1,7 @@
 from typing import Dict
 import os
 import hashlib
-from app.services.cache_manager import CacheManager
+from src.services.cache_manager import CacheManager
 
 class SearchUtilities:
     """

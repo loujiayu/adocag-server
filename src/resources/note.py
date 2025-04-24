@@ -1,8 +1,8 @@
 from flask_restful import Resource
 from flask import request, jsonify
-from app.services.ai_service_factory import AIServiceFactory
-from app.services.agents import AIAgent
-from app.services.azure_devops_search import AzureDevOpsSearch
+from src.services.ai_service_factory import AIServiceFactory
+from src.services.agents import AIAgent
+from src.services.azure_devops_search import AzureDevOpsSearch
 import time
 
 class NoteResource(Resource):

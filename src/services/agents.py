@@ -1,5 +1,5 @@
-from app.services.azure_openai_service import AzureOpenAIService
-from app.services.ai_service_factory import AIServiceFactory
+from src.services.azure_openai_service import AzureOpenAIService
+from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
 

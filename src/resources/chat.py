@@ -1,10 +1,10 @@
 from flask_restful import Resource
 from flask import request, Response
-from app.services.ai_service_factory import AIServiceFactory
+from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
-from app.services.agents import AIAgent
-from app.services.search_utilities import SearchUtilities
+from src.services.agents import AIAgent
+from src.services.search_utilities import SearchUtilities
 
 class ChatResource(Resource):
     def __init__(self, azure_devops_client=None, **kwargs):

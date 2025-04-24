@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_restful import Api
-from app.services.azure_devops_search import AzureDevOpsSearch
+from src.services.azure_devops_search import AzureDevOpsSearch
 import logging
 import os
 
@@ -17,7 +17,7 @@ def create_app():
     CORS(app, supports_credentials=True)  # Allow credentials and all origins
 
     api = Api(app)
-    from app.config import Config
+    from src.config import Config
     app.config.from_object(Config)
 
     # Initialize services
@@ -27,11 +27,11 @@ def create_app():
     )
 
     # Register resources
-    from app.resources.search import DocumentSearchResource
-    from app.resources.chat import ChatResource
-    from app.resources.note import NoteResource
-    from app.resources.health import HealthResource
-    from app.resources.home import HomeResource
+    from src.resources.search import DocumentSearchResource
+    from src.resources.chat import ChatResource
+    from src.resources.note import NoteResource
+    from src.resources.health import HealthResource
+    from src.resources.home import HomeResource
     
     # Root endpoint
     api.add_resource(HomeResource,

@@ -2,7 +2,7 @@ import os
 import redis
 import logging
 from typing import Optional
-from app.services.cache_implementations import CacheInterface, MemoryCache, RedisCache
+from src.services.cache_implementations import CacheInterface, MemoryCache, RedisCache
 
 class CacheManager:
     """

@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Any, Generator, Optional, Union
-from app.services.azure_openai_service import AzureOpenAIService
-from app.services.gemini_service import GeminiService
+from src.services.azure_openai_service import AzureOpenAIService
+from src.services.gemini_service import GeminiService
 import logging
 
 
