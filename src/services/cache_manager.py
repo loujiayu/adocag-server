@@ -24,39 +24,34 @@ class CacheManager:
         
         self.cache = MemoryCache()
 
-        # try:
-        #     if os.environ.get("REDIS_ENABLED", "false").lower() == "true":
-        #         redis_host = os.environ.get("REDIS_HOST")
-        #         redis_port = int(os.environ.get("REDIS_PORT", 6379))
-        #         redis_password = os.environ.get("REDIS_PASSWORD")
-        #         redis_ssl = os.environ.get("REDIS_SSL", "false").lower() == "true"
-                
-        #         if redis_host and redis_password:
-        #             self.redis_client = redis.Redis(
-        #                 host=redis_host,
-        #                 port=redis_port,
-        #                 password=redis_password,
-        #                 ssl=redis_ssl
-        #             )
-        #             # Test connection
-        #             if self.redis_client.ping():
-        #                 logging.info("Redis connection successful, using Redis cache")
-        #                 self.cache_type = "redis"
-        #                 self.cache = RedisCache(self.redis_client)
-        #             else:
-        #                 logging.warning("Redis ping failed, falling back to memory cache")
-        #                 self.redis_client = None
-        #                 self.cache = MemoryCache()
-        #         else:
-        #             logging.warning("Redis config incomplete, falling back to memory cache")
-        #             self.cache = MemoryCache()
-        #     else:
-        #         logging.info("Redis not enabled, using memory cache")
-        #         self.cache = MemoryCache()
-        # except Exception as e:
-        #     logging.error(f"Error connecting to Redis: {str(e)}, falling back to memory cache")
-        #     self.redis_client = None
-        #     self.cache = MemoryCache()
+        try:
+            redis_host = os.environ.get("REDIS_HOST", "adocagf.redis.cache.windows.net")
+            redis_port = int(os.environ.get("REDIS_PORT", 6380))
+            redis_password = os.environ.get("REDIS_PASSWORD")
+            
+            if redis_host and redis_password:
+                self.redis_client = redis.Redis(
+                    host=redis_host,
+                    port=redis_port,
+                    password=redis_password,
+                    ssl=True
+                )
+                # Test connection
+                if self.redis_client.ping():
+                    logging.info("Redis connection successful, using Redis cache")
+                    self.cache_type = "redis"
+                    self.cache = RedisCache(self.redis_client)
+                else:
+                    logging.warning("Redis ping failed, falling back to memory cache")
+                    self.redis_client = None
+                    self.cache = MemoryCache()
+            else:
+                logging.warning("Redis config incomplete, falling back to memory cache")
+                self.cache = MemoryCache()
+        except Exception as e:
+            logging.error(f"Error connecting to Redis: {str(e)}, falling back to memory cache")
+            self.redis_client = None
+            self.cache = MemoryCache()
     
     def get_cache(self) -> CacheInterface:
         """Get the configured cache implementation"""

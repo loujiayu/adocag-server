@@ -25,7 +25,8 @@ class SearchUtilities:
         self.ai_agent = ai_agent
         self.rating_threshold = rating_threshold # Minimum rating to consider a file relevant
         self.cache_enabled = cache_enabled
-        self.cache_ttl = cache_ttl
+        self.content_cache_ttl = 3600 * 24 * 7  # Cache file content for 7 days
+        self.rate_cache_ttl = 3600 * 24 * 10  # Cache rating for 7 days
         
         # Initialize cache if enabled
         self.cache = None
@@ -80,7 +81,7 @@ class SearchUtilities:
             )
         return combined_results
 
-    def get_file_content_from_results(self, results: Dict, query: str = "", max_length: int = 3000000) -> Dict:
+    def get_file_content_from_results(self, results: Dict, query: str = "") -> Dict:
         """
         Get the content of files from search results and sort them by content length
         
@@ -131,7 +132,7 @@ class SearchUtilities:
                     content_result = self.search_client.get_file_content(repository, file_path, branch)
                     # Cache file content
                     if content_result["status"] == "success":
-                        self.cache.set(cache_key, content_result, self.cache_ttl)
+                        self.cache.set(cache_key, content_result, self.content_cache_ttl)
                         print(f"Cached file content for: {cache_key}")
             else:
                 # Get file content from repository
@@ -139,7 +140,7 @@ class SearchUtilities:
             
             # Rate the file if AI agent is available
             rate = self.rating_threshold  # Default rating if no AI agent
-            rating_cache_key = f"rate:{file_path}"
+            rating_cache_key = f"{query}-rate:{file_path}"
             
             if self.ai_agent and query:
                 # Try to get rating from cache first
@@ -154,7 +155,7 @@ class SearchUtilities:
                         try:
                             rate = int(rating_result.get("response", "0"))
                             # Cache the rating
-                            self.cache.set(rating_cache_key, rate, self.cache_ttl)
+                            self.cache.set(rating_cache_key, rate, self.rate_cache_ttl)
                             print(f"Cached rating for: {rating_cache_key}")
                         except (ValueError, TypeError):
                             rate = 0
@@ -213,7 +214,7 @@ class SearchUtilities:
         
         return result
 
-    def combine_search_results_with_wiki(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 4000000) -> Dict:
+    def combine_search_results_with_wiki(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
         """
         Perform a comprehensive search including code repositories and wiki
         
