@@ -81,7 +81,7 @@ class SearchUtilities:
             )
         return combined_results
 
-    def get_file_content_from_results(self, results: Dict, query: str = "") -> Dict:
+    def get_file_content_from_results(self, results: Dict, query: str, max_length: int) -> Dict:
         """
         Get the content of files from search results and sort them by content length
         
