@@ -32,7 +32,7 @@ class SearchUtilities:
         self.rate_cache_ttl = 3600 * 24 * 10  # Cache rating for 7 days
         
         content_semaphore_limit = 100
-        rating_semaphore_limit = 10
+        rating_semaphore_limit = 5
 
         # Initialize semaphores for concurrent operations
         self.content_semaphore = asyncio.Semaphore(content_semaphore_limit)
