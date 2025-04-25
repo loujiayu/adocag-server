@@ -4,7 +4,6 @@ from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
 import json
 from src.services.search_utilities import SearchUtilities
-from src.utils import event_stream_to_response
 
 class DocumentSearchResource:
     def __init__(self, azure_devops_client=None, **kwargs):

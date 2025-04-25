@@ -3,7 +3,6 @@ from fastapi.responses import StreamingResponse
 from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
-from src.utils import event_stream_to_response
 from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities
 
