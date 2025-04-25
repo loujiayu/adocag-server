@@ -1,12 +1,13 @@
-from flask_restful import Resource
+from flask.views import MethodView
 from flask import request, Response
 from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
+from src.utils import event_stream_to_response
 from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities
 
-class ChatResource(Resource):
+class ChatResource(MethodView):
     def __init__(self, azure_devops_client=None, **kwargs):
         # Store default API provider that can be overridden by request args
         self.default_api_provider = kwargs.get('api_provider', 'Azure OpenAI')
@@ -96,7 +97,7 @@ class ChatResource(Resource):
         
         return merged_result
 
-    def post(self):
+    async def post(self):
         """Streaming chat endpoint"""
         data = request.get_json()
         query = request.args.get('query')
@@ -111,7 +112,7 @@ class ChatResource(Resource):
 
         if is_deep_research:
             # Create a generator function for streaming the deep research results
-            def generate_deep_research_stream():
+            async def generate_deep_research_stream():
                 # Get the user's original question
                 user_question = messages[-1]['content']
                 
@@ -137,7 +138,7 @@ class ChatResource(Resource):
                     })
                     
                     # Step 1: Call deep_research with current messages
-                    deep_research_response = self.ai_agent.deep_research(
+                    deep_research_response = await self.ai_agent.deep_research(
                         messages=current_messages
                     )
 
@@ -152,7 +153,7 @@ class ChatResource(Resource):
                     
                     # Step 2: Run quality check to get top keywords
                     print(f"Running quality check for iteration {iteration}")
-                    quality_check_result = self.ai_agent.quality_check(
+                    quality_check_result = await self.ai_agent.quality_check(
                         question=user_question,
                         deep_research_response=deep_research_response,
                         top_n=3  # Get top 3 keywords by default
@@ -199,7 +200,7 @@ class ChatResource(Resource):
 
                         print(f"Searching for keyword: {keyword}")
                         # Get search results for this keyword
-                        search_result = self.search_utilities.combine_search_results_with_wiki_sync(
+                        search_result = await self.search_utilities.combine_search_results_with_wiki(
                             query=keyword,
                             repositories=repo_list,
                             include_wiki=True,
@@ -258,13 +259,15 @@ class ChatResource(Resource):
                     "role": "user",
                     "content": final_prompt
                 })
-                
-                # Stream the final comprehensive response using the AI service
-                yield from self.ai_service.stream_chat(messages=final_messages)
+
+                async for sse_chunk in self.ai_service.stream_chat_async(messages=final_messages):
+                    yield sse_chunk
+
+            response_data = await event_stream_to_response(generate_deep_research_stream())
 
             # Return the streaming response
             return Response(
-                generate_deep_research_stream(),
+                response_data,
                 mimetype='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -273,10 +276,25 @@ class ChatResource(Resource):
                     'X-Accel-Buffering': 'no'
                 }
             )
+        
+        async def event_generator():
+            # First yield the prompt event
+            yield json.dumps({
+                "event": "prompt",
+                "data": {
+                    "message": "Generating response...",
+                    "done": False
+                }
+            }) + "\n\n"
+            
+            async for sse_chunk in self.ai_service.stream_chat_async(messages):
+                yield sse_chunk
+
+        response_data = await event_stream_to_response(event_generator())
 
         # For regular chat (non-deep-research), return the formatted stream
         return Response(
-            self.ai_service.stream_chat(messages=data['messages']),
+            response_data,
             mimetype='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',

@@ -93,15 +93,14 @@ class AzureDevOpsSearch:
             print(f"Using InteractiveBrowserCredential for {environment} environment")
         
         # Get token for Azure DevOps
-        token = credential.get_token("https://msasg.visualstudio.com//.default").token        
+        self.token = credential.get_token("https://msasg.visualstudio.com//.default").token        
         
         # Create a connection to Azure DevOps using token
-        basic_auth = BasicAuthentication('', token)
+        basic_auth = BasicAuthentication('', self.token)
         self.connection = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
         
         # Get search client
         self.search_client = self.connection.clients.get_search_client()
-        self.token = token
 
     def get_repository_config(self, repository_name: str) -> RepositorySearchConfig:
         """Get repository configuration, creating default if not exists"""

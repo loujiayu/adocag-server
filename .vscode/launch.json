@@ -5,18 +5,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-			"name": "Python Debugger: Flask",
+			"name": "Python App: Direct Run",
 			"type": "debugpy",
 			"request": "launch",
-			"module": "flask",
+			"program": "${workspaceFolder}/app.py",
 			"env": {
-				"FLASK_APP": "app.py",
 				"FLASK_DEBUG": "1",
 				"FLASK_ENV": "development"
 			},
-			"args": [
-				"run"
-			],
+			"args": [],
 			"jinja": true,
 			"autoStartBrowser": false
 		},

@@ -7,7 +7,7 @@ class AIAgent:
     def __init__(self, ai_service=None):
         self.ai_service = ai_service
 
-    def deep_research(self, messages):
+    async def deep_research(self, messages):
         system_prompt = """
 1. Answering Comes First:
 
@@ -68,7 +68,7 @@ If I ask about Managed Identity Federation and you can’t explain it fully base
         }
 
         try:
-            response = self.ai_service.chat(messages, {"json_schema": schema, "type": "json_schema"})
+            response = await self.ai_service.chat_async(messages, {"json_schema": schema, "type": "json_schema"})
 
             response = json.loads(response.get("response", "{}"))
             return response
@@ -78,7 +78,7 @@ If I ask about Managed Identity Federation and you can’t explain it fully base
                 "error": str(e)
             }
 
-    def quality_check(self, question, deep_research_response, top_n=3):
+    async def quality_check(self, question, deep_research_response, top_n=3):
         system = f"""
             You are an expert research evaluator.
             You will be given an proposed answer and unresolevd questions and keywords by deep research agent, original research question by user
@@ -135,7 +135,7 @@ If I ask about Managed Identity Federation and you can’t explain it fully base
             {"role": "system", "content": system},
             {"role": "user",   "content": prompt}
         ]
-        quality_response = self.ai_service.chat(messages, {"json_schema": schema, "type": "json_schema"})
+        quality_response = await self.ai_service.chat_async(messages, {"json_schema": schema, "type": "json_schema"})
         
         # Parse the JSON response
         parsed_response = json.loads(quality_response.get("response", "{}"))

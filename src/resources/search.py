@@ -1,21 +1,13 @@
-from flask_restful import Resource
+from flask.views import MethodView
 from flask import request, Response
 from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
 import json
 from src.services.search_utilities import SearchUtilities
-import asyncio
-from functools import wraps
+from src.utils import event_stream_to_response
 
-def async_route(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        # Run the async function in the event loop
-        return asyncio.run(f(*args, **kwargs))
-    return wrapper
-
-class DocumentSearchResource(Resource):
-    def __init__(self, azure_devops_client, method_type, **kwargs):
+class DocumentSearchResource(MethodView):
+    def __init__(self, azure_devops_client = None, method_type = None, **kwargs):
         self.method_type = method_type
         self.search_client = azure_devops_client
         self.default_api_provider = kwargs.get('api_provider', 'Azure OpenAI')
@@ -36,8 +28,7 @@ class DocumentSearchResource(Resource):
     def _get_ai_service(self):
         """Get the appropriate AI service based on request parameters"""
         return AIServiceFactory.create_service(request.args)
-        
-    @async_route
+
     async def post(self):
         query = request.args.get('query')
         if not query:
@@ -71,9 +62,9 @@ class DocumentSearchResource(Resource):
                     "content": prompt
                 }
             ]
-            
+
             # Create a generator function for SSE
-            def generate():
+            async def event_generator():
                 # First yield the prompt event
                 yield json.dumps({
                     "event": "prompt",
@@ -84,11 +75,13 @@ class DocumentSearchResource(Resource):
                     }
                 }) + "\n\n"
                 
-                # Then yield the streamed chat responses
-                yield from self.ai_service.stream_chat(messages)
+                async for sse_chunk in self.ai_service.stream_chat_async(messages):
+                    yield sse_chunk
             
+            response_data = await event_stream_to_response(event_generator())
+
             return Response(
-                generate(),
+                response_data,
                 mimetype='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
