@@ -1,29 +1,31 @@
 import json
 import time
+import random
 from typing import Optional, Any
+import redis.asyncio
 
 # Abstract cache interface
 class CacheInterface:
     """Abstract interface for cache implementations"""
     
-    def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Optional[Any]:
         """Get value from cache by key"""
         raise NotImplementedError("Subclasses must implement get()")
     
-    def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
+    async def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """Set value in cache with optional TTL in seconds"""
         raise NotImplementedError("Subclasses must implement set()")
     
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """Delete key from cache"""
         raise NotImplementedError("Subclasses must implement delete()")
     
-    def exists(self, key: str) -> bool:
+    async def exists(self, key: str) -> bool:
         """Check if key exists in cache"""
         raise NotImplementedError("Subclasses must implement exists()")
 
 # Memory cache implementation
-class MemoryCache(CacheInterface):
+class MemoryCache():
     """In-memory cache implementation"""
     
     _instance = None
@@ -69,19 +71,19 @@ class MemoryCache(CacheInterface):
 
 # Redis cache implementation
 class RedisCache(CacheInterface):
-    """Redis-based cache implementation"""
+    """Redis-based cache implementation using async methods"""
     
     _instance = None
     
     def __new__(cls, redis_client=None):
         if cls._instance is None:
             cls._instance = super(RedisCache, cls).__new__(cls)
-            cls._instance.redis = redis_client
+            cls._instance.redis: redis.asyncio.Redis = redis_client
         return cls._instance
     
-    def get(self, key: str) -> Optional[Any]:
-        """Get value from Redis cache"""
-        value = self.redis.get(key)
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from Redis cache asynchronously"""
+        value = await self.redis.get(key)
         if value is None:
             return None
         try:
@@ -89,19 +91,36 @@ class RedisCache(CacheInterface):
         except json.JSONDecodeError:
             return value.decode('utf-8') if isinstance(value, bytes) else value
     
-    def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
-        """Set value in Redis cache with TTL in seconds"""
+    async def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
+        """
+        Set value in Redis cache with TTL in seconds plus random jitter (asynchronous)
+        
+        Args:
+            key: Cache key
+            value: Value to store (will be JSON serialized)
+            ttl: Time-to-live in seconds
+            
+        Returns:
+            True if set was successful, False otherwise
+        """
+        # Add random jitter (±10%) to TTL to prevent cache stampede
+        if ttl > 0:
+            jitter = random.uniform(-0.1, 0.1) * ttl  # ±10% jitter
+            ttl = max(1, int(ttl + jitter))  # Ensure TTL is at least 1 second
+        
         try:
             serialized = json.dumps(value)
-            return self.redis.set(key, serialized, ex=ttl)
+            return await self.redis.set(key, serialized, ex=ttl)
         except (TypeError, ValueError):
             # Fall back to string representation for non-serializable objects
-            return self.redis.set(key, str(value), ex=ttl)
+            return await self.redis.set(key, str(value), ex=ttl)
     
-    def delete(self, key: str) -> bool:
-        """Delete key from Redis cache"""
-        return self.redis.delete(key) > 0
+    async def delete(self, key: str) -> bool:
+        """Delete key from Redis cache asynchronously"""
+        result = await self.redis.delete(key)
+        return result > 0
     
-    def exists(self, key: str) -> bool:
-        """Check if key exists in Redis cache"""
-        return self.redis.exists(key) > 0
+    async def exists(self, key: str) -> bool:
+        """Check if key exists in Redis cache asynchronously"""
+        result = await self.redis.exists(key)
+        return result > 0

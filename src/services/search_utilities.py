@@ -207,7 +207,7 @@ class SearchUtilities:
         # Fetch content with content semaphore
         async with self.content_semaphore:
             # Try to get file content from cache
-            content_result = self.cache.get(cache_key)
+            content_result = await self.cache.get(cache_key)
 
             if content_result:
                 print(f"Cache hit for file: {cache_key}")
@@ -217,9 +217,9 @@ class SearchUtilities:
                 content_result = await self.search_client.get_file_content_rest(
                     repository, file_path, branch
                 )
-                # Cache file content
+                # Cache file content using the async method
                 if content_result["status"] == "success":
-                    self.cache.set(cache_key, content_result, self.content_cache_ttl)
+                    await self.cache.set(cache_key, content_result, self.content_cache_ttl)
                     print(f"Cached file content for: {cache_key}")
 
         # Check if content retrieval was successful
@@ -246,7 +246,7 @@ class SearchUtilities:
         # Use rating semaphore for rating operations
         async with self.rating_semaphore:
             # Try to get rating from cache first
-            cached_rating = self.cache.get(rating_cache_key)
+            cached_rating = await self.cache.get(rating_cache_key)
             if cached_rating is not None:
                 print(f"Cache hit for rating: {rating_cache_key}")
                 rate = cached_rating
@@ -255,8 +255,8 @@ class SearchUtilities:
                 rating_result = await self.ai_agent.rate_single_file(content_result, query=query)
                 try:
                     rate = int(rating_result.get("response", "0"))
-                    # Cache the rating
-                    self.cache.set(rating_cache_key, rate, self.rate_cache_ttl)
+                    # Cache the rating using the async method
+                    await self.cache.set(rating_cache_key, rate, self.rate_cache_ttl)
                     print(f"Cached rating for: {rating_cache_key}")
                 except (ValueError, TypeError):
                     rate = 0
