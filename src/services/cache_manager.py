@@ -2,7 +2,7 @@ import os
 import redis.asyncio
 import logging
 from typing import Optional
-from src.services.cache_implementations import CacheInterface, MemoryCache, RedisCache
+from src.services.cache_implementations import CacheInterface, MemoryCache, RedisCache, TieredCache
 
 class CacheManager:
     """
@@ -19,37 +19,43 @@ class CacheManager:
     def _initialize_cache(self):
         """Initialize the appropriate cache implementation"""
         self.redis_client = None
-        self.cache_type = "memory"  # Default to memory cache
         self.cache = None
         
-        self.cache = MemoryCache()
-
         try:
             redis_host = os.environ.get("REDIS_HOST", "adocagf.redis.cache.windows.net")
             redis_port = int(os.environ.get("REDIS_PORT", 6380))
             redis_password = os.environ.get("REDIS_PASSWORD")
             
+            # Check if Redis configuration is available
             if redis_host and redis_password:
-                # Use asyncio Redis client instead of synchronous Redis
-                self.redis_client = redis.asyncio.Redis(
-                    host=redis_host,
-                    port=redis_port,
-                    password=redis_password,
-                    ssl=True
-                )
-
-                # Test connection - need to use await with redis.asyncio.Redis
-                # Since we can't use await in a non-async function, we'll initialize without testing
-                logging.info("Redis connection initialized, using Redis cache")
-                self.cache_type = "redis"
-                self.cache = RedisCache(self.redis_client)
+                # Try to initialize Redis client
+                try:
+                    # Use asyncio Redis client
+                    self.redis_client = redis.asyncio.Redis(
+                        host=redis_host,
+                        port=redis_port,
+                        password=redis_password,
+                        ssl=True
+                    )
+                    
+                    # Initialize the tiered cache with Redis
+                    self.cache = TieredCache(self.redis_client)
+                    self.cache_type = "tiered"
+                    logging.info("Tiered cache initialized with Redis backend")
+                except Exception as e:
+                    logging.error(f"Error initializing Redis: {str(e)}, falling back to memory cache")
+                    self.redis_client = None
+                    self.cache = MemoryCache()
+                    self.cache_type = "memory"
             else:
-                logging.warning("Redis config incomplete, falling back to memory cache")
+                logging.warning("Redis config incomplete, using memory cache only")
                 self.cache = MemoryCache()
+                self.cache_type = "memory"
         except Exception as e:
-            logging.error(f"Error connecting to Redis: {str(e)}, falling back to memory cache")
+            logging.error(f"Error in cache initialization: {str(e)}, falling back to memory cache")
             self.redis_client = None
             self.cache = MemoryCache()
+            self.cache_type = "memory"
     
     def get_cache(self) -> CacheInterface:
         """Get the configured cache implementation"""
