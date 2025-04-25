@@ -1,4 +1,4 @@
-from openai import AzureOpenAI
+from openai import AzureOpenAI, AsyncAzureOpenAI
 import os
 import logging
 import json

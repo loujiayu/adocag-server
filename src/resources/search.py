@@ -1,7 +1,8 @@
 from flask_restful import Resource
-from flask import jsonify, request
+from flask import request, Response
 from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
+import json
 from src.services.search_utilities import SearchUtilities
 
 class DocumentSearchResource(Resource):
@@ -27,7 +28,7 @@ class DocumentSearchResource(Resource):
         """Get the appropriate AI service based on request parameters"""
         return AIServiceFactory.create_service(request.args)
         
-    def get(self):
+    def post(self):
         query = request.args.get('query')
         if not query:
             return {"error": "Query parameter is required"}, 400
@@ -54,7 +55,37 @@ class DocumentSearchResource(Resource):
             # Create the full prompt
             prompt = f"{init_prompt}\n{context}"
             
-            # Generate and return the AI response using the service from request parameters
-            return self.ai_service.generate_response(prompt)
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            
+            # Create a generator function for SSE
+            def generate():
+                # First yield the prompt event
+                yield json.dumps({
+                    "event": "prompt",
+                    "data": {
+                        "message": "Generating response...",
+                        "content": prompt,
+                        "done": False
+                    }
+                }) + "\n\n"
+                
+                # Then yield the streamed chat responses
+                yield from self.ai_service.stream_chat(messages)
+            
+            return Response(
+                generate(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Content-Type': 'text/event-stream',
+                    'Connection': 'keep-alive',
+                    'X-Accel-Buffering': 'no'
+                }
+            )
         else:
             return {"error": f"Unable to find relevant content for: {query}"}, 400
