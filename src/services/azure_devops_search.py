@@ -1,6 +1,7 @@
 import os
 import base64
 import re
+import requests
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
 from azure.devops.connection import Connection
@@ -100,7 +101,7 @@ class AzureDevOpsSearch:
         
         # Get search client
         self.search_client = self.connection.clients.get_search_client()
-
+        self.token = token
 
     def get_repository_config(self, repository_name: str) -> RepositorySearchConfig:
         """Get repository configuration, creating default if not exists"""
@@ -253,7 +254,52 @@ class AzureDevOpsSearch:
                 "branch": branch
             }
     
-    
+    async def get_file_content_rest(self, repository: str, file_path: str, branch: str = "master") -> Dict:
+        """
+        Get the content of a file from a repository using REST API (async version with httpx)
+        
+        Args:
+            repository: Repository name
+            file_path: Path to the file in the repository
+            branch: Branch name (default: master)
+            
+        Returns:
+            Dictionary containing the file content and status
+        """
+        try:
+            import httpx
+            
+            url = f"https://dev.azure.com/{self.organization}/{self.project}/_apis/git/repositories/{repository}/items"
+            params = {
+                "path": file_path,
+                "versionDescriptor.version": branch,
+                "includeContent": "true",
+                "api-version": "7.1-preview.1"
+            }
+            headers = {
+                "Authorization": f"Bearer {self.token}"
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                content = response.text
+                
+                return {
+                    "status": "success",
+                    "path": file_path,
+                    "length": len(content),
+                    "content": content,
+                }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+                "path": file_path,
+                "repository": repository,
+                "branch": branch
+            }
 
     def get_wiki_client(self):
         """Get the Wiki client from Azure DevOps connection"""

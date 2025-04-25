@@ -4,6 +4,15 @@ from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
 import json
 from src.services.search_utilities import SearchUtilities
+import asyncio
+from functools import wraps
+
+def async_route(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        # Run the async function in the event loop
+        return asyncio.run(f(*args, **kwargs))
+    return wrapper
 
 class DocumentSearchResource(Resource):
     def __init__(self, azure_devops_client, method_type, **kwargs):
@@ -28,7 +37,8 @@ class DocumentSearchResource(Resource):
         """Get the appropriate AI service based on request parameters"""
         return AIServiceFactory.create_service(request.args)
         
-    def post(self):
+    @async_route
+    async def post(self):
         query = request.args.get('query')
         if not query:
             return {"error": "Query parameter is required"}, 400
@@ -38,7 +48,7 @@ class DocumentSearchResource(Resource):
         repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
         
         # Use our search utilities to get combined results
-        search_results = self.search_utilities.combine_search_results_with_wiki(
+        search_results = await self.search_utilities.combine_search_results_with_wiki(
             query=query,
             repositories=repo_list,
             include_wiki=True

@@ -10,3 +10,4 @@ flask_cors
 openai
 redis
 gunicorn
+httpx>=0.24.0

@@ -184,7 +184,7 @@ If I ask about Managed Identity Federation and you can’t explain it fully base
             "error": response.get("error")
         }
 
-    def rate_single_file(self, file_content, query="", prompt_template=None):
+    async def rate_single_file(self, file_content, query="", prompt_template=None):
         """Process a single file through the AI service
         
         Args:
@@ -224,7 +224,7 @@ just rating, nothing else"""
         # Add the file content after the prompt template
         prompt = f"{prompt_template}\n\nCode to analyze:\n{file_path}\n```\n{content}\n```"
         
-        response = self.ai_service.generate_response(prompt)
+        response = await self.ai_service.generate_response_async(prompt)
         return {
             "status": "success" if response.get("status") == "success" else "error",
             "file_path": file_path,
