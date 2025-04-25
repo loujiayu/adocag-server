@@ -5,17 +5,23 @@
   "version": "0.2.0",
   "configurations": [
     {
-			"name": "Python App: Direct Run",
+			"name": "FastAPI",
 			"type": "debugpy",
 			"request": "launch",
-			"program": "${workspaceFolder}/app.py",
-			"env": {
-				"FLASK_DEBUG": "1",
-				"FLASK_ENV": "development"
-			},
-			"args": [],
+			"module": "uvicorn",
+			"args": [
+				"main:app",
+				"--reload",
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"8080"
+			],
 			"jinja": true,
-			"autoStartBrowser": false
+			"autoStartBrowser": false,
+			"env": {
+				"DEBUG": "1"
+			}
 		},
     {
       "name": "Python Debugger: Current File",

@@ -4,12 +4,10 @@ azure-devops
 azure-identity>=1.13.0
 google-generativeai>=0.3.1
 google-genai
-flask_cors
+fastapi>=0.109.0
+uvicorn>=0.27.0
+starlette>=0.36.0
 openai
 redis
-gunicorn
 httpx>=0.24.0
-flask==2.3.3
-werkzeug==2.3.7
 asgiref
-hypercorn

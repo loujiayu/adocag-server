@@ -1,5 +1,5 @@
-from flask.views import MethodView
-from flask import request, Response
+from fastapi import Request
+from fastapi.responses import StreamingResponse
 from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
@@ -7,14 +7,14 @@ from src.utils import event_stream_to_response
 from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities
 
-class ChatResource(MethodView):
+class ChatResource:
     def __init__(self, azure_devops_client=None, **kwargs):
         # Store default API provider that can be overridden by request args
         self.default_api_provider = kwargs.get('api_provider', 'Azure OpenAI')
         self.azure_devops_client = azure_devops_client
         
-        # _get_ai_service helper method is called in both __init__ and post
-        self.ai_service = self._get_ai_service()
+        # Initialize AI service with default parameters (will be updated during request handling)
+        self.ai_service = AIServiceFactory.create_service({})
         
         # Pass the AI service to AIAgent
         self.ai_agent = AIAgent(ai_service=self.ai_service)
@@ -26,9 +26,9 @@ class ChatResource(MethodView):
             rating_threshold=7  # Minimum rating to consider a file relevant
         )
     
-    def _get_ai_service(self):
+    def _get_ai_service(self, request_args=None):
         """Get the appropriate AI service based on request parameters"""
-        return AIServiceFactory.create_service(request.args)
+        return AIServiceFactory.create_service(request_args or {})
     
     def format_sse_response(self, data, is_done=False):
         """Format data as Server-Sent Events (SSE) with the specified format"""
@@ -97,18 +97,34 @@ class ChatResource(MethodView):
         
         return merged_result
 
-    async def post(self):
-        """Streaming chat endpoint"""
-        data = request.get_json()
-        query = request.args.get('query')
-        repositories = request.args.get('repositories', "")
-        is_deep_research = request.args.get('is_deep_research', default='false').lower() == 'true'
-        repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
-
+    async def post(self, request: Request = None):
+        """Streaming chat endpoint optimized for FastAPI"""
+        # Extract parameters from request
+        args = request.args if hasattr(request, 'args') else request.query_params
+        query = args.get('query')
+        repositories = args.get('repositories', "")
+        is_deep_research = args.get('is_deep_research', 'false').lower() == 'true'
+        
+        # Get request body
+        if hasattr(request, 'get_json'):
+            # Using our custom get_json method from main.py
+            data = await request.get_json()
+        else:
+            try:
+                data = await request.json()
+            except:
+                data = None
+        
+        # Update AI service for this request
+        self.ai_service = self._get_ai_service(args)
+        self.ai_agent.ai_service = self.ai_service
+        
+        # Validate request body
         if not data or 'messages' not in data:
             return {"error": "Message is required in request body"}, 400
 
         messages = data['messages']
+        repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
 
         if is_deep_research:
             # Create a generator function for streaming the deep research results
@@ -263,12 +279,10 @@ class ChatResource(MethodView):
                 async for sse_chunk in self.ai_service.stream_chat_async(messages=final_messages):
                     yield sse_chunk
 
-            response_data = await event_stream_to_response(generate_deep_research_stream())
-
             # Return the streaming response
-            return Response(
-                response_data,
-                mimetype='text/event-stream',
+            return StreamingResponse(
+                generate_deep_research_stream(),
+                media_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
                     'Content-Type': 'text/event-stream',
@@ -290,12 +304,10 @@ class ChatResource(MethodView):
             async for sse_chunk in self.ai_service.stream_chat_async(messages):
                 yield sse_chunk
 
-        response_data = await event_stream_to_response(event_generator())
-
-        # For regular chat (non-deep-research), return the formatted stream
-        return Response(
-            response_data,
-            mimetype='text/event-stream',
+        # Return FastAPI StreamingResponse instead of Flask Response
+        return StreamingResponse(
+            event_generator(),
+            media_type='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',
                 'Content-Type': 'text/event-stream',
