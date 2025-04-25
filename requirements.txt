@@ -11,3 +11,4 @@ openai
 redis
 httpx>=0.24.0
 asgiref
+aiolimiter>=1.1.0

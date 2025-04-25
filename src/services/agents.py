@@ -223,8 +223,10 @@ just rating, nothing else"""
 
         # Add the file content after the prompt template
         prompt = f"{prompt_template}\n\nCode to analyze:\n{file_path}\n```\n{content}\n```"
-        
-        response = await self.ai_service.generate_response_async(prompt)
+        messages=[
+            {"role": "user",   "content": prompt}
+        ]
+        response = await self.ai_service.chat_async(messages)
         return {
             "status": "success" if response.get("status") == "success" else "error",
             "file_path": file_path,
