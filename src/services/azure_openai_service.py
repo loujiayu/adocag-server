@@ -6,7 +6,7 @@ from aiolimiter import AsyncLimiter
 
 class AzureOpenAIService:
     def __init__(self, azure_endpoint=None, api_key=None, deployment_name=None, 
-                 rate_limit=1000, time_period=60):
+                 rate_limit=800, time_period=60):
         """
         Initialize Azure OpenAI Service with rate limiting
         
