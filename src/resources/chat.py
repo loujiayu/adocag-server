@@ -199,7 +199,7 @@ class ChatResource(Resource):
 
                         print(f"Searching for keyword: {keyword}")
                         # Get search results for this keyword
-                        search_result = self.search_utilities.combine_search_results_with_wiki(
+                        search_result = self.search_utilities.combine_search_results_with_wiki_sync(
                             query=keyword,
                             repositories=repo_list,
                             include_wiki=True,

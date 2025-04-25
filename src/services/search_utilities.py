@@ -326,6 +326,38 @@ class SearchUtilities:
             "wiki_results": wiki_results
         }
 
+    def combine_search_results_with_wiki_sync(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
+        """
+        Synchronous wrapper for combine_search_results_with_wiki
+        
+        Args:
+            query: Search query
+            repositories: Optional list of repositories to search
+            include_wiki: Whether to include wiki results
+            agent_search: Whether this is an agent search
+            max_length: Maximum content length to retrieve
+            
+        Returns:
+            Dictionary with combined search results and file contents
+        """
+        # Create a new event loop if needed
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        # Run the async method and wait for completion
+        return loop.run_until_complete(
+            self.combine_search_results_with_wiki(
+                query=query, 
+                repositories=repositories, 
+                include_wiki=include_wiki,
+                agent_search=agent_search, 
+                max_length=max_length
+            )
+        )
+
     @staticmethod
     def format_content_context(search_results: Dict) -> str:
         """
