@@ -208,18 +208,37 @@ If I ask about Managed Identity Federation and you can’t explain it fully base
 
         # Set default template if none provided
         if not prompt_template:
-            prompt_template = f"""# Steps
+            prompt_template = f"""
+1.Analyze the Code
 
-1. **Analyze the Code**:
-    - Identify if the code contains basic definitions like classes, objects, or constants.
-    - Look for functional logic or operations related to {query} (e.g., {query} handling, storage, retrieval, or management).
-2. **Determine Rating**:
-    - Assign ratings below 5 if the code is primarily structural or lacks functional components.
-    - Assign ratings between 5 to 10 if the code demonstrates real {query}-related logic or CRUD functionality.
-    - Assign ratings above 7 if the code is creating a sql table and mapping schema update, or or demonstrates advanced SQL practices related to {query}.
-    - Base the exact score on the extent and complexity of the {query}-related implementation.
-# Output Format
-just rating, nothing else"""
+    Identify if the code contains basic definitions like classes, objects, or constants.
+
+    Look for functional logic or operations related to {query} (e.g., {query} handling, storage, retrieval, or management).
+
+2.UI Code Rules
+
+    Detect UI components, widgets, or elements related to {query}
+
+    Verify responsiveness rules (media queries, flex/grid usage) related to {query}.
+
+    Identify state management and data binding (props, hooks, state variables, context) related to {query}.
+
+    Look for event handlers and interaction logic (onClick, onChange, event dispatch) related to {query}.
+
+3.Determine Rating
+
+    Below 5: Code is primarily structural (static markup or style only) or lacks interactive/functional components.
+
+    5-10: Code includes basic UI logic (simple event handlers, state updates, CRUD bindings) related to {query} or demonstrates real {query}-related logic or CRUD functionality.
+
+    Above 7: Code demonstrates advanced UI patterns (dynamic forms, complex state management, schema-driven rendering, advanced styling techniques) related to {query} or creates a SQL table/mapping schema updates, or shows advanced SQL practices related to {query}.
+
+    Base the exact score on the extent and complexity of both {query}-related and UI-specific implementation.
+
+Output Format
+Just rating, nothing else.
+
+"""
 
         # Add the file content after the prompt template
         prompt = f"{prompt_template}\n\nCode to analyze:\n{file_path}\n```\n{content}\n```"

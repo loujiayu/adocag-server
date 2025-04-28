@@ -75,6 +75,11 @@ class AzureDevOpsSearch:
                 name="AdsAppsCampaignUI",
                 search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
                 excluded_paths=['test', 'suite', 'tapi', 'demo']
+            ),
+            "AdsAppUISharedComponents": RepositorySearchConfig(
+                name="AdsAppsCampaignUI",
+                search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx OR ext:es)",
+                excluded_paths=['test', 'suite', 'tapi', 'demo']
             )
             # Add more repository configurations as needed
         }
@@ -283,7 +288,7 @@ class AzureDevOpsSearch:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, headers=headers, params=params)
                 response.raise_for_status()
-                content = response.text
+                content = self.minify_code(response.text)
                 
                 return {
                     "status": "success",
@@ -293,6 +298,11 @@ class AzureDevOpsSearch:
                 }
             
         except Exception as e:
+            logging.error(f"Error in get_file_content_rest: {str(e)}")
+            content_result = self.get_file_content(repository, file_path, branch)
+            if content_result["status"] == "success":
+                logging.warning(f"fetch by get_file_content: {str(e)}")
+                return content_result
             return {
                 "status": "error",
                 "message": str(e),
