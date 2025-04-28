@@ -1,7 +1,7 @@
 import os
 import base64
 import re
-import requests
+import logging
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
 from azure.devops.connection import Connection
@@ -192,6 +192,7 @@ class AzureDevOpsSearch:
             }
             
         except Exception as e:
+            logging.error(f"Error in search_code: {str(e)}, search_text: {search_text}")
             return {
                 "status": "error",
                 "message": str(e),
