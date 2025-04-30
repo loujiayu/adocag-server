@@ -2,6 +2,7 @@ import os
 import base64
 import re
 import logging
+import time
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
 from azure.devops.connection import Connection
@@ -90,22 +91,38 @@ class AzureDevOpsSearch:
         # Select appropriate credential based on environment
         if environment == 'production' or environment == 'prod':
             # Use Managed Identity for production environments
-            credential = ManagedIdentityCredential(client_id=os.getenv('CLIENT_ID'))
+            self.credential = ManagedIdentityCredential(client_id=os.getenv('CLIENT_ID'))
             print("Using ManagedIdentityCredential for production environment")
         else:
             # Use Interactive Browser for development environments
-            credential = InteractiveBrowserCredential()
+            self.credential = InteractiveBrowserCredential()
             print(f"Using InteractiveBrowserCredential for {environment} environment")
         
-        # Get token for Azure DevOps
-        self.token = credential.get_token("https://msasg.visualstudio.com//.default").token        
+        # Initialize connection with fresh token
+        self._refresh_connection()
+
+    def _refresh_connection(self):
+        """Refresh the Azure DevOps token and connection"""
+        # Get new token for Azure DevOps
+        self.token = self.credential.get_token("https://msasg.visualstudio.com//.default").token        
         
         # Create a connection to Azure DevOps using token
         basic_auth = BasicAuthentication('', self.token)
-        self.connection = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
+        self.connection = Connection(base_url=f"https://dev.azure.com/{self.organization}", creds=basic_auth)
         
         # Get search client
         self.search_client = self.connection.clients.get_search_client()
+        
+        # Store token creation time
+        self.token_created_at = time.time()
+        logging.info("Azure DevOps token refreshed")
+
+    def _ensure_valid_token(self):
+        """Check if token is about to expire and refresh if needed"""
+        # Refresh token if it's older than 45 minutes (before the typical 1 hour expiry)
+        if time.time() - getattr(self, 'token_created_at', 0) > 45 * 60:
+            logging.info("Token is about to expire, refreshing...")
+            self._refresh_connection()
 
     def get_repository_config(self, repository_name: str) -> RepositorySearchConfig:
         """Get repository configuration, creating default if not exists"""
@@ -134,6 +151,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing search results and status
         """
+        self._ensure_valid_token()
+        
         # Create search request filter
         search_filters = {
             "Project": [self.project]
@@ -224,6 +243,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the file content and status
         """
+        self._ensure_valid_token()
+        
         try:
             # Get Git client
             git_client = self.connection.clients.get_git_client()
@@ -271,6 +292,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the file content and status
         """
+        self._ensure_valid_token()
+        
         try:
             import httpx
             
@@ -313,6 +336,7 @@ class AzureDevOpsSearch:
 
     def get_wiki_client(self):
         """Get the Wiki client from Azure DevOps connection"""
+        self._ensure_valid_token()
         return self.connection.clients.get_wiki_client()
 
     def get_wikis(self) -> Dict:
@@ -322,6 +346,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the list of wikis and status
         """
+        self._ensure_valid_token()
+        
         try:
             wiki_client = self.get_wiki_client()
             wikis = wiki_client.get_all_wikis(self.project)
@@ -348,6 +374,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the wiki pages and status
         """
+        self._ensure_valid_token()
+        
         try:
             wiki_client = self.get_wiki_client()
             pages = wiki_client.get_pages(wiki_id, path, recursion_level="full")
@@ -375,6 +403,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing search results and status
         """
+        self._ensure_valid_token()
+        
         try:
             search_client = self.search_client
             
@@ -436,6 +466,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the save status and page info
         """
+        self._ensure_valid_token()
+        
         try:
             wiki_client = self.get_wiki_client()
             path = f'/{self.knowledge_base}/{title}'
@@ -487,6 +519,8 @@ class AzureDevOpsSearch:
         Returns:
             Dictionary containing the deletion status
         """
+        self._ensure_valid_token()
+        
         try:
             wiki_client = self.get_wiki_client()
             
