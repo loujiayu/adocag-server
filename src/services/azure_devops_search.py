@@ -104,7 +104,8 @@ class AzureDevOpsSearch:
     def _refresh_connection(self):
         """Refresh the Azure DevOps token and connection"""
         # Get new token for Azure DevOps
-        self.token = self.credential.get_token("https://msasg.visualstudio.com//.default").token        
+        self.token = self.credential.get_token('499b84ac-1321-427f-aa17-267ca6975798/.default').token
+        # self.token = self.credential.get_token("https://msasg.visualstudio.com//.default").token        
         
         # Create a connection to Azure DevOps using token
         basic_auth = BasicAuthentication('', self.token)
