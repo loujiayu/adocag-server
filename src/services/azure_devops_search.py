@@ -95,7 +95,7 @@ class AzureDevOpsSearch:
             print("Using ManagedIdentityCredential for production environment")
         else:
             # Use Interactive Browser for development environments
-            self.credential = InteractiveBrowserCredential()
+            self.credential = DefaultAzureCredential()
             print(f"Using InteractiveBrowserCredential for {environment} environment")
         
         # Initialize connection with fresh token
