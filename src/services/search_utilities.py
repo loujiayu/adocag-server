@@ -1,8 +1,13 @@
-from typing import Dict
+from typing import Dict, List, Any, Optional
 import os
 import hashlib
 import asyncio
 from src.services.cache_manager import CacheManager
+from pydantic import BaseModel
+
+class SearchSource(BaseModel):
+    repositories: List[str]
+    query: Optional[str] = None
 
 class SearchUtilities:
     """
@@ -20,13 +25,10 @@ class SearchUtilities:
             ai_agent: Optional AI agent for rating search results
             rating_threshold: Minimum rating threshold for including files in results
             cache_enabled: Whether to enable caching of search results
-            cache_ttl: Time-to-live for cached items in seconds (default: 1 hour)
-            content_semaphore_limit: Maximum concurrent content fetch operations
-            rating_semaphore_limit: Maximum concurrent rating operations
         """
         self.search_client = search_client
         self.ai_agent = ai_agent
-        self.rating_threshold = rating_threshold # Minimum rating to consider a file relevant
+        self.rating_threshold = rating_threshold
         self.cache_enabled = cache_enabled
         self.content_cache_ttl = 3600 * 24 * 7  # Cache file content for 7 days
         self.rate_cache_ttl = 3600 * 24 * 10  # Cache rating for 7 days
@@ -45,59 +47,73 @@ class SearchUtilities:
             self.cache = cache_manager.get_cache()
             print(f"Cache initialized with type: {cache_manager.get_cache_type()}")
 
-    def search_repositories(self, query: str, repositories=None, agent_search=False) -> Dict:
+    def search_repositories(self, sources: List[SearchSource], agent_search=False) -> Dict:
         """
-        Search across one or more repositories
+        Search across one or more repositories with different queries
         
         Args:
-            query: Search query text
-            repositories: List of repository names to search
-            agent_search: Whether this search is initiated by an agent (affects path filtering)
+            sources: List of search sources, each containing query and repositories
+            agent_search: Whether this search is initiated by an agent
             
         Returns:
             Dictionary with search results and status
         """
-                
         # Initialize combined results
         combined_results = {
             "status": "success",
             "results": [],
             "count": 0,
-            "search_text": query
         }
         
-        # Search each repository separately and combine results
-        for repo in repositories:
-            if not repo:
+        # Search for each source's query in its repositories
+        for source in sources:
+            if not source.query or not source.repositories:
                 continue
                 
-            search_results = self.search_client.search_code(
-                search_text=query,
-                repository=repo,
-                agent_search=agent_search
+            for repo in source.repositories:
+                if not repo:
+                    continue
+                    
+                search_results = self.search_client.search_code(
+                    search_text=source.query,
+                    repository=repo,
+                    agent_search=agent_search
+                )
+                if search_results["status"] == "success":
+                    # Add the query to each result for better sorting later
+                    for result in search_results["results"]:
+                        result.search_query = source.query
+                    combined_results["results"].extend(search_results["results"])
+                    combined_results["count"] += search_results["count"]        # Sort results by relevance using each result's own query
+        if combined_results["results"]:
+            # First sort by content matches
+            combined_results["results"].sort(
+                key=lambda x: -len(x.matches.get('content', []))
             )
             
-            if search_results["status"] == "success":
-                combined_results["results"].extend(search_results["results"])
-                combined_results["count"] += search_results["count"]
-
-        # Sort results by relevance
-        if combined_results["results"]:
-            combined_results["results"].sort(
-                key=lambda x: (
-                    -int(query.lower() in x.path.lower()),  # Priority to files with search text in path
-                    -len(x.matches.get('content', []))      # Secondary sort by content matches
-                )
-            )
+            # Then group files by whether their query appears in path
+            # while maintaining relative order within each group
+            path_matches = []
+            other_results = []
+            
+            for result in combined_results["results"]:
+                query = getattr(result, 'search_query', '').lower()
+                if query and query in result.path.lower():
+                    path_matches.append(result)
+                else:
+                    other_results.append(result)
+            
+            # Combine the results maintaining the sort within each group
+            combined_results["results"] = path_matches + other_results
+        
         return combined_results
 
-    async def get_file_content_from_results(self, results: Dict, query: str, max_length: int) -> Dict:
+    async def get_file_content_from_results(self, results: Dict, max_length: int) -> Dict:
         """
         Get the content of files from search results and sort them by content length
         
         Args:
-            results: Search results from search_code or search_repositories
-            query: Optional search query to use for file rating
+            results: Search results from search_code or search_repositories, each result should have search_query
             max_length: Maximum number of characters to retrieve (default: 3000000)
             
         Returns:
@@ -107,7 +123,6 @@ class SearchUtilities:
             return {
                 "status": "error",
                 "message": "No results found or search failed",
-                "search_text": results.get("search_text", "")
             }
         
         # Process all results
@@ -134,9 +149,12 @@ class SearchUtilities:
                 # Skip this result if repository or file path is missing
                 continue
                 
+            # Get the search query for this result
+            search_query = getattr(result, 'search_query', '')
+            
             # Create task to process this file
             tasks.append(self._process_file_content(
-                repository, file_path, branch, query, 
+                repository, file_path, branch, search_query, 
                 max_length, length_lock, max_length_reached, current_length
             ))
         
@@ -175,13 +193,12 @@ class SearchUtilities:
             "contents": file_contents,
             "total_length": sum(len(x.get("content", "")) for x in file_contents),
             "max_length": max_length,
-            "search_text": results.get("search_text", "")
         }
         
         return result
-        
-    async def _process_file_content(self, repository, file_path, branch, query, 
-                                   max_length, length_lock, max_length_reached, current_length):
+
+    async def _process_file_content(self, repository, file_path, branch, search_query, 
+                                  max_length, length_lock, max_length_reached, current_length):
         """
         Helper method to process a single file's content and rating with semaphores
         
@@ -189,7 +206,7 @@ class SearchUtilities:
             repository: Repository name
             file_path: Path to the file
             branch: Branch name
-            query: Search query
+            search_query: Search query used to find this file
             max_length: Maximum total length allowed
             length_lock: Lock for updating the shared length counter
             max_length_reached: Event that is set when max length is reached
@@ -237,7 +254,7 @@ class SearchUtilities:
             
         # Rate the file if AI agent is available
         rate = self.rating_threshold  # Default rating if no AI agent
-        rating_cache_key = f"{query.lower()}-rate:{file_path}"
+        rating_cache_key = f"{search_query.lower()}-rate:{file_path}"
 
         if max_length_reached.is_set():
             print(f"Skipping file {file_path}: max length already reached")
@@ -252,7 +269,7 @@ class SearchUtilities:
                 rate = cached_rating
             else:
                 # Get rating from AI agent by directly awaiting the async function
-                rating_result = await self.ai_agent.rate_single_file(content_result, query=query)
+                rating_result = await self.ai_agent.rate_single_file(content_result, query=search_query)
                 try:
                     rate = int(rating_result.get("response", "0"))
                     # Cache the rating using the async method
@@ -263,7 +280,6 @@ class SearchUtilities:
 
         if rate < self.rating_threshold:
             print(f"Skipping file {file_path} with rating {rate}")
-            # If we skip this file, we need to reduce the length count
             return None
         
         # Check if adding this file would exceed the length limit
@@ -275,7 +291,7 @@ class SearchUtilities:
             new_total_length = current_length[0] + content_length
             if new_total_length > max_length:
                 print(f"Length limit reached ({current_length[0]}/{max_length}). Skipping file {file_path}")
-                max_length_reached.set()  # Signal to other tasks that we've reached the max length
+                max_length_reached.set()
                 return None
                 
             # Update the current length
@@ -291,72 +307,59 @@ class SearchUtilities:
             'rating': rate
         }
 
-    async def combine_search_results_with_wiki(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
+    async def combine_search_results_with_wiki(self, sources: List[SearchSource], include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
         """
-        Perform a comprehensive search including code repositories and wiki
+        Perform comprehensive searches including code repositories and wiki for multiple sources
         
         Args:
-            query: Search query
-            repositories: Optional list of repositories to search
+            sources: List of search sources, each containing query and repositories
             include_wiki: Whether to include wiki results
-            agent_search: Whether this is an agent search (ignores included_paths)
+            agent_search: Whether this search is initiated by an agent
+            max_length: Maximum content length to retrieve
             
         Returns:
             Dictionary with combined search results and file contents
         """
         # Get code search results
-        code_results = self.search_repositories(query, repositories, agent_search=agent_search)
+        code_results = self.search_repositories(sources, agent_search=agent_search)
         
         agent_mode_limit = 50
         if code_results["count"] > agent_mode_limit and agent_search:
-            # Limit the number of results to 100 for non-agent searches
+            # Limit the number of results for agent searches
             code_results["results"] = code_results["results"][:agent_mode_limit]
             
         # Get file contents
-        file_content = await self.get_file_content_from_results(code_results, query, max_length=max_length)
+        file_content = await self.get_file_content_from_results(code_results, max_length=max_length)
         
-        # Add wiki results if requested
+        # Add wiki results if requested - search wiki with all queries
         wiki_results = None
         if include_wiki and hasattr(self.search_client, 'search_wiki'):
-            wiki_results = self.search_client.search_wiki(query)
+            wiki_combined = {
+                "status": "success",
+                "results": [],
+                "count": 0
+            }
+            
+            for source in sources:
+                if source.query:
+                    wiki_result = self.search_client.search_wiki(source.query)
+                    if wiki_result and wiki_result.get("status") == "success":
+                        # Add unique wiki results
+                        for result in wiki_result.get("results", []):
+                            if not any(existing.file_name == result.file_name 
+                                    for existing in wiki_combined["results"] 
+                                    if hasattr(existing, "file_name")):
+                                wiki_combined["results"].append(result)
+                                wiki_combined["count"] += 1
+            
+            if wiki_combined["count"] > 0:
+                wiki_results = wiki_combined
         
         return {
             "status": "success" if file_content.get("status") == "success" or (wiki_results and wiki_results.get("status") == "success") else "error",
             "code_results": file_content,
             "wiki_results": wiki_results
         }
-
-    def combine_search_results_with_wiki_sync(self, query: str, repositories=None, include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
-        """
-        Synchronous wrapper for combine_search_results_with_wiki
-        
-        Args:
-            query: Search query
-            repositories: Optional list of repositories to search
-            include_wiki: Whether to include wiki results
-            agent_search: Whether this is an agent search
-            max_length: Maximum content length to retrieve
-            
-        Returns:
-            Dictionary with combined search results and file contents
-        """
-        # Create a new event loop if needed
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        # Run the async method and wait for completion
-        return loop.run_until_complete(
-            self.combine_search_results_with_wiki(
-                query=query, 
-                repositories=repositories, 
-                include_wiki=include_wiki,
-                agent_search=agent_search, 
-                max_length=max_length
-            )
-        )
 
     @staticmethod
     def format_content_context(search_results: Dict) -> str:

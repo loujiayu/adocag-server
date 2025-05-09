@@ -4,6 +4,7 @@ from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
 from src.services.agents import AIAgent
+from src.services.search_utilities import SearchUtilities, SearchSource
 from src.services.search_utilities import SearchUtilities
 
 class ChatResource:
@@ -100,7 +101,6 @@ class ChatResource:
         """Streaming chat endpoint optimized for FastAPI"""
         # Extract parameters from request
         args = request.args if hasattr(request, 'args') else request.query_params
-        query = args.get('query')
         repositories = args.get('repositories', "")
         is_deep_research = args.get('is_deep_research', 'false').lower() == 'true'
         
@@ -216,8 +216,7 @@ class ChatResource:
                         print(f"Searching for keyword: {keyword}")
                         # Get search results for this keyword
                         search_result = await self.search_utilities.combine_search_results_with_wiki(
-                            query=keyword,
-                            repositories=repo_list,
+                            sources=[SearchSource(query=keyword, repositories=repo_list)],
                             include_wiki=True,
                             agent_search=True,
                             max_length=1000000

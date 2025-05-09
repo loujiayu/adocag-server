@@ -6,7 +6,7 @@ from aiolimiter import AsyncLimiter
 
 class AzureOpenAIService:
     def __init__(self, azure_endpoint=None, api_key=None, deployment_name=None, 
-                 rate_limit=800, time_period=60):
+                 rate_limit=800, time_period=60, temperature=0.7):
         """
         Initialize Azure OpenAI Service with rate limiting
         
@@ -14,9 +14,11 @@ class AzureOpenAIService:
             azure_endpoint: Azure OpenAI endpoint URL
             api_key: Azure OpenAI API key
             deployment_name: Azure OpenAI deployment model name
-            rate_limit: Maximum number of requests in the time period (default: 20)
+            rate_limit: Maximum number of requests in the time period (default: 800)
             time_period: Time period in seconds for the rate limit (default: 60)
+            temperature: Controls randomness in text generation (default: 0.7)
         """
+        self.temperature = temperature
         self.client = AzureOpenAI(
             azure_endpoint=azure_endpoint or os.environ["AZURE_OPENAI_ENDPOINT"],
             api_key=api_key or os.environ["AZURE_OPENAI_KEY"],
@@ -33,13 +35,13 @@ class AzureOpenAIService:
         # Initialize rate limiter (default: 20 requests per minute)
         self.rate_limiter = AsyncLimiter(rate_limit, time_period)
         logging.info(f"Azure OpenAI Service initialized with rate limit: {rate_limit} requests per {time_period}s")
-
+    
     def chat(self, messages, response_format=None):
         try:
             response = self.client.chat.completions.create(
                 model=self.deployment_name,
                 messages=messages,
-                temperature=0.7,
+                temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 response_format=response_format
             )
@@ -61,7 +63,7 @@ class AzureOpenAIService:
                 response = await self.async_client.chat.completions.create(
                     model=self.deployment_name,
                     messages=messages,
-                    temperature=0.7,
+                    temperature=self.temperature,
                     max_tokens=self.max_tokens,
                     response_format=response_format
                 )
@@ -81,7 +83,7 @@ class AzureOpenAIService:
             response = self.client.chat.completions.create(
                 model=self.deployment_name,
                 messages=messages,
-                temperature=0.7,
+                temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 stream=True,
             )
@@ -121,7 +123,7 @@ class AzureOpenAIService:
                 response = await self.async_client.chat.completions.create(
                     model=self.deployment_name,
                     messages=messages,
-                    temperature=0.7,
+                    temperature=self.temperature,
                     max_tokens=self.max_tokens,
                     stream=True,
                 )

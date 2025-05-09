@@ -47,12 +47,15 @@ class AIServiceFactory:
                 "azure_model", 
                 "AZURE_OPENAI_DEPLOYMENT_NAME", 
             )
+              # Get temperature parameter
+            temperature = float(get_param("temperature", None) or 0.7)
             
             # Create and return an Azure OpenAI service instance
             return AzureOpenAIService(
                 azure_endpoint=azure_endpoint,
                 api_key=api_key,
-                deployment_name=deployment_name
+                deployment_name=deployment_name,
+                temperature=temperature
             )
         elif "Google Vertex AI" == api_provider:
             # Extract Gemini specific parameters (currently none, but could be added later)
@@ -77,9 +80,12 @@ class AIServiceFactory:
                 "deployment_name", 
                 "AZURE_OPENAI_DEPLOYMENT_NAME", 
             )
+              # Get temperature parameter
+            temperature = float(get_param("temperature", None) or 0.7)
             
             return AzureOpenAIService(
                 azure_endpoint=azure_endpoint,
                 api_key=api_key,
-                deployment_name=deployment_name
+                deployment_name=deployment_name,
+                temperature=temperature
             )

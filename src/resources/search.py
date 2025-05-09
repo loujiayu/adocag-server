@@ -2,6 +2,7 @@ from fastapi import Request
 from fastapi.responses import StreamingResponse
 from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
+from types import SimpleNamespace
 import json
 from src.services.search_utilities import SearchUtilities
 
@@ -18,16 +19,8 @@ class DocumentSearchResource:
         """Handle POST request for document search optimized for FastAPI"""
         # Get request parameters
         args = request.args if hasattr(request, 'args') else request.query_params
-        query = args.get('query')
-        repositories = args.get('repositories', "")
-        
-        # Validate query parameter
-        if not query:
-            return {"error": "Query parameter is required"}, 400
-            
-        # Parse repositories from request
-        repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
-        
+        request_data = request.json()
+        sources = [SimpleNamespace(**d) for d in request_data.get("sources")]
         # Get the AI service
         ai_service = self._get_ai_service(args)
         
@@ -43,8 +36,7 @@ class DocumentSearchResource:
         
         # Use our search utilities to get combined results
         search_results = await search_utilities.combine_search_results_with_wiki(
-            query=query,
-            repositories=repo_list,
+            sources=sources,
             include_wiki=True
         )
         
@@ -53,7 +45,7 @@ class DocumentSearchResource:
             # Format the context from search results
             context = search_utilities.format_content_context(search_results)
             # Generate an initial prompt for the AI service
-            init_prompt = f"This document provides a brief overview of the key points. It avoids excessive detail and focuses on clarity and conciseness about {query}, without exceeding the 1000-token limit. It serves as a quick reference or starting point for deeper exploration if needed."
+            init_prompt = f"This document provides a brief overview of the key points. It avoids excessive detail and focuses on clarity and conciseness based on context , without exceeding the 1000-token limit. It serves as a quick reference or starting point for deeper exploration if needed."
             # Create the full prompt
             prompt = f"{init_prompt}\n{context}"
             messages = [
@@ -92,5 +84,5 @@ class DocumentSearchResource:
             from fastapi import HTTPException
             raise HTTPException(
                 status_code=400, 
-                detail=f"Unable to find relevant content for: {query}"
+                detail=f"Unable to find relevant content."
             )

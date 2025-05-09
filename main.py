@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from src.services.azure_devops_search import AzureDevOpsSearch
 from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
-from src.services.search_utilities import SearchUtilities
+from src.services.search_utilities import SearchUtilities, SearchSource
 from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
 import logging
@@ -66,6 +66,9 @@ class NoteUpdateRequest(BaseModel):
     content: Optional[str] = None
     title: Optional[str] = None
 
+class SearchRequest(BaseModel):
+    sources: List[SearchSource]
+
 # Helper to get AI service from request
 async def get_ai_service(request: Request):
     query_params = dict(request.query_params)
@@ -108,17 +111,11 @@ async def home():
 # Search endpoint - using DocumentSearchResource from search.py
 @app.post("/api/search", tags=["Search"])
 async def search_chat(
-    request: Request,
-    query: str = Query(..., description="Search query"),
-    repositories: str = Query("", description="Comma-separated list of repositories")
+    search_request: SearchRequest,
+    request: Request
 ):
-    # Create a FastAPI-compatible request object that DocumentSearchResource can use
-    setattr(request, "args", {
-        "query": query,
-        "repositories": repositories
-    })
-    
     # Call the post method from DocumentSearchResource
+    setattr(request, "json", lambda: search_request.dict())
     return await document_search_resource.post(request)
 
 # Chat endpoint - using ChatResource from chat.py
@@ -126,15 +123,15 @@ async def search_chat(
 async def chat(
     chat_request: ChatRequest,
     request: Request,
-    query: Optional[str] = Query(None, description="Optional search query"),
     repositories: str = Query("", description="Comma-separated list of repositories"),
-    is_deep_research: bool = Query(False, description="Whether to perform deep research")
+    is_deep_research: bool = Query(False, description="Whether to perform deep research"),
+    temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses.")
 ):
     # Add query parameters to request object for ChatResource compatibility
     setattr(request, "args", {
-        "query": query,
         "repositories": repositories,
-        "is_deep_research": str(is_deep_research).lower()
+        "is_deep_research": str(is_deep_research).lower(),
+        "temperature": str(temperature)
     })
     
     # Convert Pydantic model to dict and attach to request
