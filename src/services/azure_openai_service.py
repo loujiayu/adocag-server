@@ -27,7 +27,7 @@ class AzureOpenAIService:
             api_key=api_key or os.environ["AZURE_OPENAI_KEY"],
             api_version="2025-01-01-preview",
         )
-        self.max_tokens = 4000
+        self.max_tokens = 32000
         self.deployment_name = deployment_name or os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"]
         
         # Initialize rate limiter (default: 20 requests per minute)
