@@ -30,8 +30,8 @@ class SearchUtilities:
         self.ai_agent = ai_agent
         self.rating_threshold = rating_threshold
         self.cache_enabled = cache_enabled
-        self.content_cache_ttl = 3600 * 24 * 7  # Cache file content for 7 days
-        self.rate_cache_ttl = 3600 * 24 * 10  # Cache rating for 7 days
+        self.content_cache_ttl = 3600 * 24 * 14  # Cache file content for 7 days
+        self.rate_cache_ttl = 3600 * 24 * 20  # Cache rating for 7 days
         
         content_semaphore_limit = 100
         rating_semaphore_limit = 5
