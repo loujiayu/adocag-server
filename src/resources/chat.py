@@ -3,9 +3,13 @@ from fastapi.responses import StreamingResponse
 from src.services.ai_service_factory import AIServiceFactory
 import os
 import json
+import logging
 from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities, SearchSource
 from src.services.search_utilities import SearchUtilities
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 class ChatResource:
     def __init__(self, azure_devops_client=None, **kwargs):
@@ -98,13 +102,12 @@ class ChatResource:
         return merged_result
 
     async def post(self, request: Request = None):
-        """Streaming chat endpoint optimized for FastAPI"""
-        # Extract parameters from request
+        """Streaming chat endpoint optimized for FastAPI"""        # Extract parameters from request
         args = request.args if hasattr(request, 'args') else request.query_params
         repositories = args.get('repositories', "")
         is_deep_research = args.get('is_deep_research', 'false').lower() == 'true'
         
-        # Get request body
+          # Get request body
         if hasattr(request, 'get_json'):
             # Using our custom get_json method from main.py
             data = await request.get_json()
@@ -124,12 +127,21 @@ class ChatResource:
 
         messages = data['messages']
         repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
+          # Log the latest user message if available
+        if messages and len(messages) > 0:
+            latest_message = messages[-1]
+            if latest_message.get('role') == 'user':
+                user_content = latest_message.get('content', '')
+                logger.info(f"User message: {user_content}")
 
         if is_deep_research:
             # Create a generator function for streaming the deep research results
             async def generate_deep_research_stream():
                 # Get the user's original question
                 user_question = messages[-1]['content']
+                
+                # Log the deep research question
+                logger.info(f"Deep research question: {user_question[:100]}{'...' if len(user_question) > 100 else ''}")
                 
                 # Start iterative deep research process
                 max_iterations = 5
