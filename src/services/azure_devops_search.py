@@ -78,10 +78,15 @@ class AzureDevOpsSearch:
                 excluded_paths=['test', 'suite', 'tapi', 'demo']
             ),
             "AdsAppUISharedComponents": RepositorySearchConfig(
-                name="AdsAppsCampaignUI",
+                name="AdsAppUISharedComponents",
                 search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx OR ext:es)",
                 excluded_paths=['test', 'suite', 'tapi', 'demo']
-            )
+            ),
+            "AdsAppUI": RepositorySearchConfig(
+                name="AdsAppUI",
+                search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
+                excluded_paths=['test', 'suite', 'tapi', 'demo']
+            ),
             # Add more repository configurations as needed
         }
         
