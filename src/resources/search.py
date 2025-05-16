@@ -47,8 +47,12 @@ class DocumentSearchResource:
             # Generate an initial prompt for the AI service
             init_prompt = f"This document provides a brief overview of the key points. It avoids excessive detail and focuses on clarity and conciseness based on context , without exceeding the 1000-token limit. It serves as a quick reference or starting point for deeper exploration if needed."
             # Create the full prompt
-            prompt = f"{init_prompt}\n{context}"
+            prompt = f"{context}"
             messages = [
+                {
+                    "role": "system",
+                    "content": init_prompt
+                },
                 {
                     "role": "user",
                     "content": prompt

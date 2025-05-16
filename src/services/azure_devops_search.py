@@ -113,8 +113,7 @@ class AzureDevOpsSearch:
         
         # Get search client
         self.search_client = self.connection.clients.get_search_client()
-        
-        # Store token creation time
+          # Store token creation time
         self.token_created_at = time.time()
         logging.info("Azure DevOps token refreshed")
 
@@ -138,7 +137,8 @@ class AzureDevOpsSearch:
         repository: Optional[str] = None,
         branch: Optional[str] = "master",
         agent_search: bool = False,
-        max_results: int = 1000
+        max_results: int = 1000,
+        without_prefix: bool = False
     ) -> Dict:
         """
         Search code in Azure DevOps repositories
@@ -147,7 +147,9 @@ class AzureDevOpsSearch:
             search_text: Text to search for
             repository: Optional repository name to search in
             branch: Branch to search in (default: master)
+            agent_search: Whether the search is performed by an agent (default: False)
             max_results: Maximum number of results to return (default: 1000)
+            without_prefix: If True, repository-specific prefix will not be applied (default: False)
             
         Returns:
             Dictionary containing search results and status
@@ -157,9 +159,7 @@ class AzureDevOpsSearch:
         # Create search request filter
         search_filters = {
             "Project": [self.project]
-        }
-
-        # Clean up search text for path matching by removing file extension filters and other special syntax
+        }        # Clean up search text for path matching by removing file extension filters and other special syntax
         clean_search_text = search_text.lower()
         
         # Apply repository-specific configuration if repository is specified
@@ -167,7 +167,9 @@ class AzureDevOpsSearch:
             repository_name = repository
                 
             repo_config = self.get_repository_config(repository_name)
-            search_text = repo_config.apply_prefix(search_text)
+            # Only apply prefix if without_prefix is False
+            if not without_prefix:
+                search_text = repo_config.apply_prefix(search_text)
             search_filters["Repository"] = repository if isinstance(repository, list) else [repository]
             
         if branch:

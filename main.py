@@ -10,6 +10,7 @@ from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities, SearchSource
 from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
+from src.resources.scopesearch import ScopeSearchResource
 import logging
 import platform
 import datetime
@@ -51,6 +52,9 @@ document_search_resource = DocumentSearchResource(azure_devops_client=azure_devo
 # Initialize ChatResource
 chat_resource = ChatResource(azure_devops_client=azure_devops_client)
 
+# Initialize ScopeSearchResource
+scope_search_resource = ScopeSearchResource(azure_devops_client=azure_devops_client)
+
 # Define request models
 class MessageItem(BaseModel):
     role: str
@@ -68,6 +72,13 @@ class NoteUpdateRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     sources: List[SearchSource]
+
+class ScopeScriptSearchRequest(BaseModel):
+    search_text: str
+    repository: Optional[str] = None
+    branch: Optional[str] = "master"
+    max_results: Optional[int] = 1000
+    without_prefix: Optional[bool] = False
 
 # Helper to get AI service from request
 async def get_ai_service(request: Request):
@@ -95,13 +106,13 @@ async def health_check():
 
 # Home endpoint
 @app.get("/", tags=["Home"])
-async def home():
-    return {
+async def home():    return {
         'message': 'Welcome to the API server',
         'endpoints': {
             '/api/health': 'Health check endpoint',
             '/api/search/filelist': 'File list endpoint',
             '/api/search/chat': 'Full content search endpoint',
+            '/api/search/scope': 'Scope script search endpoint',
             '/api/chat': 'Streaming chat endpoint',
             '/api/note': 'Note management endpoint'
         },
@@ -143,9 +154,22 @@ async def chat(
     
     # Add get_json method to request
     setattr(request, "get_json", get_json)
-    
-    # Call the post method from ChatResource which now returns FastAPI StreamingResponse directly
+      # Call the post method from ChatResource which now returns FastAPI StreamingResponse directly
     return await chat_resource.post(request)
+
+# Scope Script Search endpoint
+@app.post("/api/search/scope", tags=["Search"])
+async def search_scope_script(
+    request: Request
+):
+    # Call the post method from ScopeSearchResource
+    return await scope_search_resource.post(
+        request=request,
+        search_text="(ext:script)",
+        repository="AdsAppsMT",
+        branch="master",
+        max_results=1000,
+    )
 
 # Note endpoints
 @app.get("/api/note", tags=["Notes"])

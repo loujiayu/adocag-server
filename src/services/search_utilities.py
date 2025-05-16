@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional
 import os
-import hashlib
+from src.services.azure_devops_search import AzureDevOpsSearch
 import asyncio
 from src.services.cache_manager import CacheManager
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ class SearchUtilities:
     processing the results to extract file contents.
     """
     
-    def __init__(self, search_client, ai_agent=None, rating_threshold=7, cache_enabled=True):
+    def __init__(self, search_client: AzureDevOpsSearch, ai_agent=None, rating_threshold=7, cache_enabled=True):
         """
         Initialize search utilities with required clients
         
@@ -108,7 +108,7 @@ class SearchUtilities:
         
         return combined_results
 
-    async def get_file_content_from_results(self, results: Dict, max_length: int) -> Dict:
+    async def get_file_content_from_results(self, results: Dict, max_length: int, with_rating: bool = True) -> Dict:
         """
         Get the content of files from search results and sort them by content length
         
@@ -155,7 +155,7 @@ class SearchUtilities:
             # Create task to process this file
             tasks.append(self._process_file_content(
                 repository, file_path, branch, search_query, 
-                max_length, length_lock, max_length_reached, current_length
+                max_length, length_lock, max_length_reached, current_length, with_rating
             ))
         
         # Wait for all processing tasks to complete
@@ -198,7 +198,7 @@ class SearchUtilities:
         return result
 
     async def _process_file_content(self, repository, file_path, branch, search_query, 
-                                  max_length, length_lock, max_length_reached, current_length):
+                                  max_length, length_lock, max_length_reached, current_length, with_rating):
         """
         Helper method to process a single file's content and rating with semaphores
         
@@ -219,25 +219,10 @@ class SearchUtilities:
             
         # Use file path directly as cache key, nothing else
         cache_key = file_path
-        content_result = None
         
         # Fetch content with content semaphore
         async with self.content_semaphore:
-            # Try to get file content from cache
-            content_result = await self.cache.get(cache_key)
-
-            if content_result:
-                print(f"Cache hit for file: {cache_key}")
-            else:
-                print(f"Cache miss for file: {cache_key}")
-                # Get file content from repository using the async method directly
-                content_result = await self.search_client.get_file_content_rest(
-                    repository, file_path, branch
-                )
-                # Cache file content using the async method
-                if content_result["status"] == "success":
-                    await self.cache.set(cache_key, content_result, self.content_cache_ttl)
-                    print(f"Cached file content for: {cache_key}")
+            content_result = await self.get_file_content(repository, file_path, branch, cache_key)
 
         # Check if content retrieval was successful
         if not content_result or content_result["status"] != "success":
@@ -253,34 +238,20 @@ class SearchUtilities:
             return None
             
         # Rate the file if AI agent is available
-        rate = self.rating_threshold  # Default rating if no AI agent
         rating_cache_key = f"{search_query.lower()}-rate:{file_path}"
 
         if max_length_reached.is_set():
             print(f"Skipping file {file_path}: max length already reached")
             return None
         
-        # Use rating semaphore for rating operations
-        async with self.rating_semaphore:
-            # Try to get rating from cache first
-            cached_rating = await self.cache.get(rating_cache_key)
-            if cached_rating is not None:
-                print(f"Cache hit for rating: {rating_cache_key}")
-                rate = cached_rating
-            else:
-                # Get rating from AI agent by directly awaiting the async function
-                rating_result = await self.ai_agent.rate_single_file(content_result, query=search_query)
-                try:
-                    rate = int(rating_result.get("response", "0"))
-                    # Cache the rating using the async method
-                    await self.cache.set(rating_cache_key, rate, self.rate_cache_ttl)
-                    print(f"Cached rating for: {rating_cache_key}")
-                except (ValueError, TypeError):
-                    rate = 0
+        if with_rating:
+            # Use rating semaphore for rating operations
+            async with self.rating_semaphore:
+                rate = await self.rate_file_content(content_result, search_query, rating_cache_key)
 
-        if rate < self.rating_threshold:
-            print(f"Skipping file {file_path} with rating {rate}")
-            return None
+            if rate < self.rating_threshold:
+                print(f"Skipping file {file_path} with rating {rate}")
+                return None
         
         # Check if adding this file would exceed the length limit
         async with length_lock:
@@ -298,14 +269,98 @@ class SearchUtilities:
             current_length[0] = new_total_length
             print(f"Updated total length: {current_length[0]}/{max_length}, processing file {file_path}")
 
-        print(f"Processing file {file_path} with rating {rate}")
         return {
             'content_result': content_result,
             'file_path': file_path,
             'repository': repository,
             'branch': branch,
-            'rating': rate
         }
+        
+    async def rate_file_content(self, content_result, search_query, cache_key=None):
+        """
+        Rate file content relevance to the search query
+        
+        Args:
+            content_result: Dictionary containing file content and status
+            search_query: Query to rate the content against
+            cache_key: Optional cache key for rating, defaults to None
+            
+        Returns:
+            Integer rating of the content
+        """
+        # Set default rating if AI agent is not available
+        rate = self.rating_threshold
+        
+        # If no cache key provided, use a default format
+        if cache_key is None and search_query:
+            file_path = content_result.get("file_path", "unknown")
+            cache_key = f"{search_query.lower()}-rate:{file_path}"
+            
+        # Try to get rating from cache if cache is enabled
+        if self.cache:
+            cached_rating = await self.cache.get(cache_key)
+            if cached_rating is not None:
+                print(f"Cache hit for rating: {cache_key}")
+                return cached_rating
+        
+        # If AI agent is available, get rating
+        if self.ai_agent:
+            try:
+                # Get rating from AI agent
+                rating_result = await self.ai_agent.rate_single_file(content_result, query=search_query)
+                try:
+                    rate = int(rating_result.get("response", "0"))
+                    # Cache the rating if cache is enabled
+                    if self.cache:
+                        await self.cache.set(cache_key, rate, self.rate_cache_ttl)
+                        print(f"Cached rating for: {cache_key}")
+                except (ValueError, TypeError):
+                    print(f"Error parsing rating result: {rating_result}")
+                    rate = 0
+            except Exception as e:
+                print(f"Error getting rating: {str(e)}")
+                rate = 0
+                
+        return rate
+
+    async def get_file_content(self, repository, file_path, branch, cache_key=None):
+        """
+        Get file content from cache or from repository
+        
+        Args:
+            repository: Repository name
+            file_path: Path to the file
+            branch: Branch name
+            cache_key: Optional cache key, defaults to file_path if not provided
+            
+        Returns:
+            Dictionary containing file content and status
+        """
+        if cache_key is None:
+            cache_key = file_path
+            
+        # Try to get file content from cache if cache is enabled
+        content_result = None
+        if self.cache:
+            content_result = await self.cache.get(cache_key)
+            
+            if content_result:
+                print(f"Cache hit for file: {cache_key}")
+                return content_result
+            else:
+                print(f"Cache miss for file: {cache_key}")
+        
+        # Get file content from repository using the async method
+        content_result = await self.search_client.get_file_content_rest(
+            repository, file_path, branch
+        )
+        
+        # Cache file content if retrieval was successful and cache is enabled
+        if content_result and content_result["status"] == "success":
+            await self.cache.set(cache_key, content_result, self.content_cache_ttl)
+            print(f"Cached file content for: {cache_key}")
+            
+        return content_result
 
     async def combine_search_results_with_wiki(self, sources: List[SearchSource], include_wiki=True, agent_search=False, max_length: int = 3000000) -> Dict:
         """

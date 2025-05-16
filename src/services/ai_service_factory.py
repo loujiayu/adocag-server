@@ -31,7 +31,7 @@ class AIServiceFactory:
                 return os.environ.get(env_name)
         
         # Extract api_provider from request args, kwargs, or use default
-        api_provider = get_param('api_provider')
+        api_provider = get_param('api_provider', 'BuiltIn')
         
         if 'Azure OpenAI' == api_provider:
             # Extract Azure OpenAI specific parameters
