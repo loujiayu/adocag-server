@@ -9,7 +9,7 @@ from azure.devops.connection import Connection
 from azure.identity import ManagedIdentityCredential, DefaultAzureCredential, InteractiveBrowserCredential
 from msrest.authentication import BasicAuthentication
 from azure.devops.v7_0.search.models import CodeSearchRequest
-from azure.devops.v7_0.wiki.models import WikiPageCreateOrUpdateParameters, GitVersionDescriptor
+from azure.devops.v7_0.wiki.models import WikiPageCreateOrUpdateParameters, GitVersionDescriptor, WikiPagesBatchRequest
 from dataclasses import dataclass
 
 # Load environment variables
@@ -455,6 +455,53 @@ class AzureDevOpsSearch:
                 "message": str(e),
                 "search_text": search_text,
             }
+    
+    def get_wiki_pages_batch(self, wiki_id: str, filter_path: str) -> Dict:
+        """
+        Get wiki pages under a specific path in batches
+        
+        Args:
+            wiki_id: ID of the wiki (defaults to self.wiki_id)
+            path: Path in the wiki (default: root "/")
+            batch_size: Number of pages to retrieve per batch (default: 100)
+            
+        Returns:
+            Dictionary containing all wiki pages and status
+        """
+        self._ensure_valid_token()
+        
+        try:
+            wiki_client = self.get_wiki_client()
+            all_pages = []
+            continuation_token = None
+            batch = 100
+            
+            # Get batch of pages
+            batch = wiki_client.get_pages_batch(
+                project=self.project,
+                pages_batch_request=WikiPagesBatchRequest(
+                    continuation_token=continuation_token,
+                    top=batch,  # Number of pages to retrieve in each batch
+                ),
+                wiki_identifier=wiki_id
+            )
+            # Get content for each page in the batch
+            for page in batch:
+                content = wiki_client.get_page_by_id(self.project, wiki_id, page.id, include_content=True)
+                if filter_path in content.page.path:
+                    content.page.file_name = content.page.path
+                    all_pages.append(content.page)
+                
+            return {
+                "status": "success",
+                "results": all_pages,
+                "count": len(all_pages),
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
     def save_wiki_page(self, title: str, content: str) -> Dict:
         """
@@ -550,9 +597,12 @@ class AzureDevOpsSearch:
 if __name__ == "__main__":
     # Initialize the search client using Azure CLI-based credentials
     search_client = AzureDevOpsSearch(
-        organization=os.getenv('AZURE_DEVOPS_ORG'),
-        project=os.getenv('AZURE_DEVOPS_PROJECT')
+        organization="mscosmos",
+        project="CosmosWiki"
     )
+
+    # search_client.get_wiki_pages('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae')
+    search_client.get_wiki_pages_batch('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae', 'SCOPE Language')
     # path: /teams/CampaignMT/docs/team/Knowledge-Auto-Generated/
     # wikiid: b499bcae-e563-4435-8427-585b129dd2f1
     # search_client.search_wiki('video')

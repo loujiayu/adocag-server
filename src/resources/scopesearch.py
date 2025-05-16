@@ -8,7 +8,7 @@ from src.services.ai_service_factory import AIServiceFactory
 import json
 
 class ScopeSearchResource:
-    def __init__(self, azure_devops_client: Optional[AzureDevOpsSearch] = None, 
+    def __init__(self, azure_devops_client: Optional[AzureDevOpsSearch] = None, azure_devops_cosmos_client: Optional[AzureDevOpsSearch] = None,
                  ai_agent=None, rating_threshold=7, cache_enabled=True, **kwargs):
         """
         Initialize the ScopeSearchResource
@@ -23,7 +23,7 @@ class ScopeSearchResource:
         self.search_client: AzureDevOpsSearch = azure_devops_client
         # Initialize AI service
         self.ai_service = AIServiceFactory.create_service({})
-        
+        self.azure_devops_cosmos_client = azure_devops_cosmos_client
         self.search_utilities = SearchUtilities(
             search_client=azure_devops_client,
             ai_agent=ai_agent,
@@ -78,26 +78,58 @@ class ScopeSearchResource:
                 file_content = await self.search_utilities.get_file_content_from_results(
                     search_results, max_length=3000000, with_rating=False
                 )
+            
+                # Format the context from search results
+                search_results = {
+                  "code_results": file_content,
+                  "wiki_results": None
+                }
+                context = self.search_utilities.format_content_context(search_results)
+
+                wiki_files = self.azure_devops_cosmos_client.get_wiki_pages_batch('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae', 'SCOPE Language')
+
+                search_results = {
+                  "code_results": None,
+                  "wiki_results": wiki_files
+                }
+                scope_knowledge = self.search_utilities.format_content_context(search_results)
+
+                system_content = f"Scope knowledge: {scope_knowledge}"
 
                 async def event_generator():
+                    yield json.dumps({
+                        "event": "systemprompt",
+                        "data": {
+                            "message": "Generating response...",
+                            "content": f'##Scope knowledge## \n{scope_knowledge}',
+                            "done": False
+                        }
+                    }) + "\n\n"
+
+                    
+                    yield json.dumps({
+                        "event": "prompt",
+                        "data": {
+                            "message": "Generating response...",
+                            "content": f'##Code Sample##\n{context}',
+                            "done": False
+                        }
+                    }) + "\n\n"
                     # First yield the processing message
                     yield self.format_sse_response({
                         "event": "processing",
                         "message": "Analyzing search results...",
                     })
 
-                    # Format the context from search results
-                    search_results = {
-                        "code_results": file_content,
-                        "wiki_results": None
-                    }
-                    context = self.search_utilities.format_content_context(search_results)
-
                     # Prepare messages for AI chat
                     messages = [
                         {
+                            "role": "system",
+                            "content": system_content
+                        },
+                        {
                             "role": "user",
-                            "content": f"Please analyze the following code search results for '{search_text}':\n\n{context}"
+                            "content": f"It's code samples, please summarize the concept of the scope language for '{search_text}':\n\n{context}"
                         }
                     ]
 
