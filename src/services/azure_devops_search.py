@@ -598,28 +598,28 @@ class AzureDevOpsSearch:
                 "page_id": page_id
             }
 
-# Example usage
-if __name__ == "__main__":
-    # Initialize the search client using Azure CLI-based credentials
-    search_client = AzureDevOpsSearch(
-        organization="mscosmos",
-        project="CosmosWiki"
-    )
+# # Example usage
+# if __name__ == "__main__":
+#     # Initialize the search client using Azure CLI-based credentials
+#     search_client = AzureDevOpsSearch(
+#         organization="mscosmos",
+#         project="CosmosWiki"
+#     )
 
-    # search_client.get_wiki_pages('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae')
-    search_client.get_wiki_pages_batch('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae', 'SCOPE Language')
-    # path: /teams/CampaignMT/docs/team/Knowledge-Auto-Generated/
-    # wikiid: b499bcae-e563-4435-8427-585b129dd2f1
-    # search_client.search_wiki('video')
-    res = search_client.save_wiki_page('video resource2', 'Test conten2t fss')
+#     # search_client.get_wiki_pages('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae')
+#     search_client.get_wiki_pages_batch('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae', 'SCOPE Language')
+#     # path: /teams/CampaignMT/docs/team/Knowledge-Auto-Generated/
+#     # wikiid: b499bcae-e563-4435-8427-585b129dd2f1
+#     # search_client.search_wiki('video')
+#     res = search_client.save_wiki_page('video resource2', 'Test conten2t fss')
 
-    search_client.delete_wiki_page(res['page'].page.id)
-    # # Example 1: Search in all repositories
-    # results = search_client.search_code(
-    #     search_text="(ext:cs OR ext:sql) video",
-    #     repository=["AdsAppsMT"],  # Search in specific repository
-    #     branch="master"
-    # )
+#     search_client.delete_wiki_page(res['page'].page.id)
+#     # # Example 1: Search in all repositories
+#     # results = search_client.search_code(
+#     #     search_text="(ext:cs OR ext:sql) video",
+#     #     repository=["AdsAppsMT"],  # Search in specific repository
+#     #     branch="master"
+#     # )
 
-    # bar = search_client.get_file_content_from_results(results)
-    # print(bar)
+#     # bar = search_client.get_file_content_from_results(results)
+#     # print(bar)

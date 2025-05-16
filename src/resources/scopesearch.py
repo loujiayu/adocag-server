@@ -84,15 +84,9 @@ class ScopeSearchResource:
                   "code_results": file_content,
                   "wiki_results": None
                 }
-                context = self.search_utilities.format_content_context(search_results)
-
-                wiki_files = self.azure_devops_cosmos_client.get_wiki_pages_batch('238b5bcf-c60f-4dad-bc05-fb4283e8d9ae', 'SCOPE Language')
-
-                search_results = {
-                  "code_results": None,
-                  "wiki_results": wiki_files
-                }
-                scope_knowledge = self.search_utilities.format_content_context(search_results)
+                context = self.search_utilities.format_content_context(search_results)                # Read scope knowledge from file
+                with open('src/scope_knowledge', 'r', encoding='utf-8') as f:
+                    scope_knowledge = f.read()
 
                 system_content = f"Scope knowledge: {scope_knowledge}"
 

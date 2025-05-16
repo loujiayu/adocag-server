@@ -46,10 +46,10 @@ azure_devops_client = AzureDevOpsSearch(
     project=os.getenv('AZURE_DEVOPS_PROJECT')
 )
 
-azure_devops_cosmos_client = AzureDevOpsSearch(
-    organization="mscosmos",
-    project="CosmosWiki",
-)
+# azure_devops_cosmos_client = AzureDevOpsSearch(
+#     organization="mscosmos",
+#     project="CosmosWiki",
+# )
 
 # Initialize DocumentSearchResource
 document_search_resource = DocumentSearchResource(azure_devops_client=azure_devops_client)
@@ -58,7 +58,7 @@ document_search_resource = DocumentSearchResource(azure_devops_client=azure_devo
 chat_resource = ChatResource(azure_devops_client=azure_devops_client)
 
 # Initialize ScopeSearchResource
-scope_search_resource = ScopeSearchResource(azure_devops_client=azure_devops_client, azure_devops_cosmos_client=azure_devops_cosmos_client)
+scope_search_resource = ScopeSearchResource(azure_devops_client=azure_devops_client, azure_devops_cosmos_client=None)
 
 # Define request models
 class MessageItem(BaseModel):
