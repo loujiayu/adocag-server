@@ -49,3 +49,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+
+views.py
+test_search.py
+definition

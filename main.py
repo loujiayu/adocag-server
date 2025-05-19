@@ -67,6 +67,7 @@ class MessageItem(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[MessageItem]
+    stream_response: Optional[bool] = True
 
 class NoteCreateRequest(BaseModel):
     content: str
@@ -77,13 +78,15 @@ class NoteUpdateRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     sources: List[SearchSource]
+    stream_response: Optional[bool] = True
+    custom_prompt: Optional[str] = None
 
 class ScopeScriptSearchRequest(BaseModel):
-    search_text: str
-    repository: Optional[str] = None
+    repository: Optional[str] = "AdsAppsMT"
     branch: Optional[str] = "master"
     max_results: Optional[int] = 1000
-    without_prefix: Optional[bool] = False
+    stream_response: Optional[bool] = True
+    custom_prompt: Optional[str] = None
 
 # Helper to get AI service from request
 async def get_ai_service(request: Request):
@@ -165,15 +168,18 @@ async def chat(
 # Scope Script Search endpoint
 @app.post("/api/search/scope", tags=["Search"])
 async def search_scope_script(
-    request: Request
+    request: Request,
+    search_request: ScopeScriptSearchRequest
 ):
     # Call the post method from ScopeSearchResource
     return await scope_search_resource.post(
         request=request,
         search_text="(ext:script)",
-        repository="AdsAppsMT",
-        branch="master",
-        max_results=1000,
+        repository=search_request.repository,
+        branch=search_request.branch,
+        max_results=search_request.max_results,
+        stream_response=search_request.stream_response,
+        custom_prompt=search_request.custom_prompt
     )
 
 # Note endpoints

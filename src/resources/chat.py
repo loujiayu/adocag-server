@@ -102,14 +102,14 @@ class ChatResource:
         return merged_result
 
     async def post(self, request: Request = None):
-        """Streaming chat endpoint optimized for FastAPI"""        # Extract parameters from request
+        """Streaming chat endpoint optimized for FastAPI"""
+        # Extract parameters from request
         args = request.args if hasattr(request, 'args') else request.query_params
         repositories = args.get('repositories', "")
         is_deep_research = args.get('is_deep_research', 'false').lower() == 'true'
         
-          # Get request body
+        # Get request body
         if hasattr(request, 'get_json'):
-            # Using our custom get_json method from main.py
             data = await request.get_json()
         else:
             try:
@@ -126,8 +126,10 @@ class ChatResource:
             return {"error": "Message is required in request body"}, 400
 
         messages = data['messages']
+        stream_response = data.get('stream_response', True)  # Default to streaming if not specified
         repo_list = [r.strip() for r in repositories.split(",")] if repositories else []
-          # Log the latest user message if available
+        
+        # Log the latest user message if available
         if messages and len(messages) > 0:
             latest_message = messages[-1]
             if latest_message.get('role') == 'user':
@@ -135,163 +137,26 @@ class ChatResource:
                 logger.info(f"User message: {user_content}")
 
         if is_deep_research:
-            # Create a generator function for streaming the deep research results
-            async def generate_deep_research_stream():
-                # Get the user's original question
-                user_question = messages[-1]['content']
+            # Deep research is always streaming due to its interactive nature
+            return await self._handle_deep_research(messages, repo_list, user_content)
+        
+        if stream_response:
+            async def event_generator():
+                # First yield the prompt event
+                yield json.dumps({
+                    "event": "prompt",
+                    "data": {
+                        "message": "Generating response...",
+                        "done": False
+                    }
+                }) + "\n\n"
                 
-                # Log the deep research question
-                logger.info(f"Deep research question: {user_question[:100]}{'...' if len(user_question) > 100 else ''}")
-                
-                # Start iterative deep research process
-                max_iterations = 5
-                current_messages = messages.copy()
-                accumulated_context = ""
-                keywords = set()
-                
-                # First yield the initial processing message
-                yield self.format_sse_response({
-                    "event": "processing",
-                    "message": "Starting deep research process...",
-                })
-                
-                for iteration in range(1, max_iterations + 1):
-                    print(f"\n=== Starting Deep Research Iteration {iteration}/{max_iterations} ===")
-                    
-                    # Notify user about current iteration
-                    yield self.format_sse_response({
-                        "event": "processing",
-                        "message": f"Deep Research Iteration {iteration}/{max_iterations}...",
-                    })
-                    
-                    # Step 1: Call deep_research with current messages
-                    deep_research_response = await self.ai_agent.deep_research(
-                        messages=current_messages
-                    )
-
-                    if deep_research_response.get("status") == "error":
-                        error_msg = f"Deep research failed in iteration {iteration}. Error: {deep_research_response.get('error')}"
-                        print(error_msg)
-                        yield self.format_sse_response({
-                            "event": "processing", 
-                            "message": error_msg,
-                        })
-                        break
-                    
-                    # Step 2: Run quality check to get top keywords
-                    print(f"Running quality check for iteration {iteration}")
-                    quality_check_result = await self.ai_agent.quality_check(
-                        question=user_question,
-                        deep_research_response=deep_research_response,
-                        top_n=3  # Get top 3 keywords by default
-                    )
-
-                    if quality_check_result.get("status") != "success":
-                        error_msg = f"Quality check failed in iteration {iteration}. Error: {quality_check_result.get('error')}"
-                        print(error_msg)
-                        yield self.format_sse_response({
-                            "event": "processing",
-                            "message": error_msg,
-                        })
-                        break
-                    
-                    # Skip to next iteration if no relevant keywords
-                    if not quality_check_result.get("top_relevance_keywords"):
-                        msg = f"No additional relevant keywords found in iteration {iteration}."
-                        print(msg)
-                        yield self.format_sse_response({
-                            "event": "processing",
-                            "message": msg,
-                        })
-                        break
-                    
-                    # Step 3: Search for each top keyword
-                    print(f"Searching for keywords in iteration {iteration}")
-                    
-                    # Report the keywords we're searching for
-                    current_keywords = [k.get("keyword") for k in quality_check_result["top_relevance_keywords"]]
-                    new_keywords = [k for k in current_keywords if k not in keywords]
-                    yield self.format_sse_response({
-                        "event": "processing",
-                        "message": f"Searching for keywords: {', '.join(new_keywords)}",
-                    })
-                    
-                    search_results_list = []
-                    for keyword_result in quality_check_result["top_relevance_keywords"]:
-                        keyword = keyword_result.get("keyword")
-
-                        if keyword in keywords:
-                            print(f"Keyword '{keyword}' already searched. Skipping.")
-                            continue
-                        keywords.add(keyword)
-
-                        print(f"Searching for keyword: {keyword}")
-                        # Get search results for this keyword
-                        search_result = await self.search_utilities.combine_search_results_with_wiki(
-                            sources=[SearchSource(query=keyword, repositories=repo_list)],
-                            include_wiki=True,
-                            agent_search=True,
-                            max_length=1000000
-                        )
-                        search_results_list.append(search_result)
-                    
-                    # If we found search results, merge them
-                    if search_results_list:
-                        merged_results = self.merge_search_results(search_results_list)
-                        # Format the context from merged search results
-                        iteration_context = self.search_utilities.format_content_context(merged_results)
-                        accumulated_context += f"\n--- Context from Iteration {iteration} ---\n{iteration_context}\n"
-                        
-                        # Yield interim findings for this iteration
-                        yield self.format_sse_response({
-                            "event": "processing",
-                            "message": f"Iteration {iteration} findings: Found relevant information about {', '.join(new_keywords)}.",
-                        })
-                        
-                        current_messages.append({
-                            "role": "assistant",
-                            "content": f"Please continue researching my question: {user_question}. Use the additional context to improve your answer. Additional research findings: {iteration_context}"
-                        })
-                    else:
-                        msg = f"No search results found for keywords in iteration {iteration}."
-                        print(msg)
-                        yield self.format_sse_response({
-                            "event": "processing",
-                            "message": msg,
-                        })
-                        break
-                
-                # After all iterations, generate final comprehensive response
-                print("Generating final comprehensive response after all iterations")
-                yield self.format_sse_response({
-                    "event": "processing",
-                    "message": "Research complete. Generating final answer...",
-                })
-                
-                final_prompt = f"""
-                Based on the extensive research across multiple iterations:
-                
-                Original question: {user_question}
-                
-                The following context was gathered during research:
-                {accumulated_context}
-                
-                Please provide a comprehensive, well-structured answer to the original question 
-                that integrates all the information gathered through the iterative research process.
-                """
-
-                final_messages = messages.copy()
-                final_messages.append({
-                    "role": "user",
-                    "content": final_prompt
-                })
-
-                async for sse_chunk in self.ai_service.stream_chat_async(messages=final_messages):
+                async for sse_chunk in self.ai_service.stream_chat_async(messages):
                     yield sse_chunk
 
-            # Return the streaming response
+            # Return streaming response
             return StreamingResponse(
-                generate_deep_research_stream(),
+                event_generator(),
                 media_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -300,23 +165,174 @@ class ChatResource:
                     'X-Accel-Buffering': 'no'
                 }
             )
-        
-        async def event_generator():
-            # First yield the prompt event
-            yield json.dumps({
-                "event": "prompt",
-                "data": {
-                    "message": "Generating response...",
-                    "done": False
-                }
-            }) + "\n\n"
+        else:
+            # For non-streaming response, get the complete response
+            response = await self.ai_service.chat_async(messages)
+            return {
+                "status": "success",
+                "content": response.get("response") if response.get("status") == "success" else None,
+                "error": response.get("error") if response.get("status") == "error" else None
+            }
+
+    async def _handle_deep_research(self, messages, repo_list, user_question):
+        """Handle deep research request which is always streaming"""
+        # Create a generator function for streaming the deep research results
+        async def generate_deep_research_stream():
+            # First yield the processing message
+            yield self.format_sse_response({
+                "event": "processing",
+                "message": "Starting deep research process...",
+            })
             
-            async for sse_chunk in self.ai_service.stream_chat_async(messages):
+            # Start iterative deep research process
+            max_iterations = 5
+            current_messages = messages.copy()
+            accumulated_context = ""
+            keywords = set()
+            
+            # First yield the initial processing message
+            yield self.format_sse_response({
+                "event": "processing",
+                "message": "Starting deep research process...",
+            })
+            
+            for iteration in range(1, max_iterations + 1):
+                print(f"\n=== Starting Deep Research Iteration {iteration}/{max_iterations} ===")
+                
+                # Notify user about current iteration
+                yield self.format_sse_response({
+                    "event": "processing",
+                    "message": f"Deep Research Iteration {iteration}/{max_iterations}...",
+                })
+                
+                # Step 1: Call deep_research with current messages
+                deep_research_response = await self.ai_agent.deep_research(
+                    messages=current_messages
+                )
+
+                if deep_research_response.get("status") == "error":
+                    error_msg = f"Deep research failed in iteration {iteration}. Error: {deep_research_response.get('error')}"
+                    print(error_msg)
+                    yield self.format_sse_response({
+                        "event": "processing", 
+                        "message": error_msg,
+                    })
+                    break
+                
+                # Step 2: Run quality check to get top keywords
+                print(f"Running quality check for iteration {iteration}")
+                quality_check_result = await self.ai_agent.quality_check(
+                    question=user_question,
+                    deep_research_response=deep_research_response,
+                    top_n=3  # Get top 3 keywords by default
+                )
+
+                if quality_check_result.get("status") != "success":
+                    error_msg = f"Quality check failed in iteration {iteration}. Error: {quality_check_result.get('error')}"
+                    print(error_msg)
+                    yield self.format_sse_response({
+                        "event": "processing",
+                        "message": error_msg,
+                    })
+                    break
+                
+                # Skip to next iteration if no relevant keywords
+                if not quality_check_result.get("top_relevance_keywords"):
+                    msg = f"No additional relevant keywords found in iteration {iteration}."
+                    print(msg)
+                    yield self.format_sse_response({
+                        "event": "processing",
+                        "message": msg,
+                    })
+                    break
+                
+                # Step 3: Search for each top keyword
+                print(f"Searching for keywords in iteration {iteration}")
+                
+                # Report the keywords we're searching for
+                current_keywords = [k.get("keyword") for k in quality_check_result["top_relevance_keywords"]]
+                new_keywords = [k for k in current_keywords if k not in keywords]
+                yield self.format_sse_response({
+                    "event": "processing",
+                    "message": f"Searching for keywords: {', '.join(new_keywords)}",
+                })
+                
+                search_results_list = []
+                for keyword_result in quality_check_result["top_relevance_keywords"]:
+                    keyword = keyword_result.get("keyword")
+
+                    if keyword in keywords:
+                        print(f"Keyword '{keyword}' already searched. Skipping.")
+                        continue
+                    keywords.add(keyword)
+
+                    print(f"Searching for keyword: {keyword}")
+                    # Get search results for this keyword
+                    search_result = await self.search_utilities.combine_search_results_with_wiki(
+                        sources=[SearchSource(query=keyword, repositories=repo_list)],
+                        include_wiki=True,
+                        agent_search=True,
+                        max_length=1000000
+                    )
+                    search_results_list.append(search_result)
+                
+                # If we found search results, merge them
+                if search_results_list:
+                    merged_results = self.merge_search_results(search_results_list)
+                    # Format the context from merged search results
+                    iteration_context = self.search_utilities.format_content_context(merged_results)
+                    accumulated_context += f"\n--- Context from Iteration {iteration} ---\n{iteration_context}\n"
+                    
+                    # Yield interim findings for this iteration
+                    yield self.format_sse_response({
+                        "event": "processing",
+                        "message": f"Iteration {iteration} findings: Found relevant information about {', '.join(new_keywords)}.",
+                    })
+                    
+                    current_messages.append({
+                        "role": "assistant",
+                        "content": f"Please continue researching my question: {user_question}. Use the additional context to improve your answer. Additional research findings: {iteration_context}"
+                    })
+                else:
+                    msg = f"No search results found for keywords in iteration {iteration}."
+                    print(msg)
+                    yield self.format_sse_response({
+                        "event": "processing",
+                        "message": msg,
+                    })
+                    break
+            
+            # After all iterations, generate final comprehensive response
+            print("Generating final comprehensive response after all iterations")
+            yield self.format_sse_response({
+                "event": "processing",
+                "message": "Research complete. Generating final answer...",
+            })
+            
+            final_prompt = f"""
+            Based on the extensive research across multiple iterations:
+            
+            Original question: {user_question}
+            
+            The following context was gathered during research:
+            {accumulated_context}
+            
+            Please provide a comprehensive, well-structured answer to the original question 
+            that integrates all the information gathered through the iterative research process.
+            """
+
+            final_messages = messages.copy()
+            final_messages.append({
+                "role": "user",
+                "content": final_prompt
+            })
+
+            async for sse_chunk in self.ai_service.stream_chat_async(messages=final_messages):
                 yield sse_chunk
 
-        # Return FastAPI StreamingResponse instead of Flask Response
+        # Return the streaming response
         return StreamingResponse(
-            event_generator(),
+            generate_deep_research_stream(),
             media_type='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',

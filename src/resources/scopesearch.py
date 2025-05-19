@@ -50,6 +50,8 @@ class ScopeSearchResource:
         repository: Optional[Union[str, List[str]]] = None, 
         branch: str = "master", 
         max_results: int = 1000,
+        stream_response: bool = True,
+        custom_prompt: Optional[str] = None,
     ):
         """
         Handle POST request for scope script search with streaming chat response
@@ -60,9 +62,11 @@ class ScopeSearchResource:
             repository: Optional repository name or list of repository names to search in
             branch: Branch to search in (default: master)
             max_results: Maximum number of results to return (default: 1000)
+            stream_response: Whether to stream the response (default: True)
+            custom_prompt: Optional custom prompt to use instead of default
             
         Returns:
-            StreamingResponse containing AI service's analysis of the search results
+            StreamingResponse or dict containing AI service's analysis of the search results
         """
         try:
             # Call Azure DevOps search directly for scope script search
@@ -84,64 +88,73 @@ class ScopeSearchResource:
                   "code_results": file_content,
                   "wiki_results": None
                 }
-                context = self.search_utilities.format_content_context(search_results)                # Read scope knowledge from file
+                context = self.search_utilities.format_content_context(search_results)
+                
+                # Read scope knowledge from file
                 with open('src/scope_knowledge', 'r', encoding='utf-8') as f:
                     scope_knowledge = f.read()
 
-                system_content = f"Scope knowledge: {scope_knowledge}"
-
-                async def event_generator():
-                    yield json.dumps({
-                        "event": "systemprompt",
-                        "data": {
-                            "message": "Generating response...",
-                            "content": f'##Scope knowledge## \n{scope_knowledge}',
-                            "done": False
-                        }
-                    }) + "\n\n"
-
-                    
-                    yield json.dumps({
-                        "event": "prompt",
-                        "data": {
-                            "message": "Generating response...",
-                            "content": f'##Code Sample##\n{context}',
-                            "done": False
-                        }
-                    }) + "\n\n"
-                    # First yield the processing message
-                    yield self.format_sse_response({
-                        "event": "processing",
-                        "message": "Analyzing search results...",
-                    })
-
-                    # Prepare messages for AI chat
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": system_content
-                        },
-                        {
-                            "role": "user",
-                            "content": f"It's code samples, please summarize the concept of the scope language for '{search_text}':\n\n{context}"
-                        }
-                    ]
-
-                    # Stream the chat response
-                    async for sse_chunk in self.ai_service.stream_chat_async(messages=messages):
-                        yield sse_chunk
-
-                return StreamingResponse(
-                    event_generator(),
-                    media_type='text/event-stream',
-                    headers={
-                        'Cache-Control': 'no-cache',
-                        'Content-Type': 'text/event-stream',
-                        'Connection': 'keep-alive',
-                        'X-Accel-Buffering': 'no'
-                    }
-                )
+                # Use custom prompt if provided, otherwise use default prompt
+                user_prompt = custom_prompt if custom_prompt else f"It's code samples, please summarize the concept of the scope language for '{search_text}':"
                 
+                # Prepare messages for AI chat
+                messages = [
+                    {
+                        "role": "user",
+                        "content": f"{user_prompt}\n\n{context}"
+                    }
+                ]
+
+                if stream_response:
+                    async def event_generator():
+                        yield json.dumps({
+                            "event": "systemprompt",
+                            "data": {
+                                "message": "Generating response...",
+                                "content": f'##Scope knowledge## \n{scope_knowledge}',
+                                "done": False
+                            }
+                        }) + "\n\n"
+
+                        yield json.dumps({
+                            "event": "prompt",
+                            "data": {
+                                "message": "Generating response...",
+                                "content": f'##Code Sample##\n{context}',
+                                "done": False
+                            }
+                        }) + "\n\n"
+                        
+                        # First yield the processing message
+                        yield self.format_sse_response({
+                            "event": "processing",
+                            "message": "Analyzing search results...",
+                        })
+
+                        # Stream the chat response
+                        async for sse_chunk in self.ai_service.stream_chat_async(messages=messages):
+                            yield sse_chunk
+
+                    return StreamingResponse(
+                        event_generator(),
+                        media_type='text/event-stream',
+                        headers={
+                            'Cache-Control': 'no-cache',
+                            'Content-Type': 'text/event-stream',
+                            'Connection': 'keep-alive',
+                            'X-Accel-Buffering': 'no'
+                        }
+                    )
+                else:
+                    # For non-streaming response, get the complete response
+                    response = await self.ai_service.chat_async(messages)
+                    return {
+                        "status": "success",
+                        "scope_knowledge": scope_knowledge,
+                        "codes": context,
+                        "content": response.get("response") if response.get("status") == "success" else None,
+                        "error": response.get("error") if response.get("status") == "error" else None
+                    }
             else:
                 raise HTTPException(
                     status_code=400, 
