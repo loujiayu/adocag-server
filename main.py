@@ -2,6 +2,7 @@ import os
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from src.services.azure_devops_search import AzureDevOpsSearch
@@ -232,6 +233,19 @@ async def delete_note(note_id: str, ai_service = Depends(get_ai_service)):
         return {"status": "success", "message": "Note deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add route for API documentation
+@app.get("/api/docs", tags=["Documentation"], response_class=HTMLResponse)
+async def get_docs():
+    """Return API documentation in HTML format"""
+    try:
+        with open('templates/api_docs.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        return HTMLResponse(
+            content=f"<h1>Error loading documentation</h1><p>{str(e)}</p>",
+            status_code=500
+        )
 
 # Run the server when executed directly
 if __name__ == "__main__":
