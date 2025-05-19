@@ -235,16 +235,77 @@ async def delete_note(note_id: str, ai_service = Depends(get_ai_service)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Add route for API documentation
-@app.get("/api/docs", tags=["Documentation"], response_class=HTMLResponse)
-async def get_docs():
-    """Return API documentation in HTML format"""
+@app.get("/api/docs", tags=["Documentation"])
+async def get_docs(format: str = Query("html", description="Format to return docs in: 'html' or 'md'")):
+    """Return API documentation in HTML or Markdown format"""
     try:
-        with open('templates/api_docs.html', 'r', encoding='utf-8') as f:
-            return f.read()
+        with open('API_DOCUMENTATION.md', 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        if format.lower() == 'md':
+            return Response(
+                content=content,
+                media_type='text/markdown'
+            )
+        else:
+            import markdown2
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>API Documentation</title>
+                <style>
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    pre {{
+                        background-color: #f5f5f5;
+                        padding: 15px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                    }}
+                    code {{
+                        font-family: 'Consolas', 'Monaco', monospace;
+                        background-color: #f5f5f5;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 20px 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 12px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f8f9fa;
+                    }}
+                    h1, h2, h3 {{
+                        color: #2c3e50;
+                        margin-top: 1.5em;
+                    }}
+                </style>
+            </head>
+            <body>
+                {markdown2.markdown(content, extras=['tables', 'code-friendly', 'fenced-code-blocks'])}
+            </body>
+            </html>
+            """
+            return HTMLResponse(content=html_content)
     except Exception as e:
-        return HTMLResponse(
-            content=f"<h1>Error loading documentation</h1><p>{str(e)}</p>",
-            status_code=500
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error loading documentation: {str(e)}"
         )
 
 # Run the server when executed directly
