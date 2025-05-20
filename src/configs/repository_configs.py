@@ -73,6 +73,20 @@ REPOSITORY_CONFIGS = {
         search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
         excluded_paths=['test', 'suite', 'tapi', 'demo']
     ),
+    "msnews-experiences": RepositorySearchConfig(
+        name="msnews-experiences",
+        organization="msasg",
+        project="ContentServices",
+        search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
+        excluded_paths=['test', 'undefined']
+    ),
+    "coreux-components": RepositorySearchConfig(
+        name="coreux-components",
+        organization="msasg",
+        project="ContentServices",
+        search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
+        excluded_paths=[]
+    ),
 }
 
 def get_repository_config(repository_name: str) -> RepositorySearchConfig:
