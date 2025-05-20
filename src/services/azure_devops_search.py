@@ -137,6 +137,8 @@ class AzureDevOpsSearch:
             used_branch = branch if branch is not None else repo_config.branch
             search_filters["Branch"] = [used_branch]
         
+        logging.info(f"Searching in repository: {repository}, branch: {branch}, search_text: {search_text}, filters: {search_filters}")
+
         # Create search request
         search_request = CodeSearchRequest(
             search_text=search_text,
@@ -149,6 +151,8 @@ class AzureDevOpsSearch:
             # Execute the search request using repository-specific client
             response = self.search_clients[repository].fetch_code_search_results(search_request)
             
+            logging.info(f"Search response count: {response.count}")
+
             # Filter results based on repository configuration
             filtered_results = []
             

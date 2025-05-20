@@ -246,6 +246,7 @@ async def get_repositories():
             "project": config.project,
             "searchPrefix": config.search_prefix,
             "excludedPaths": config.excluded_paths,
+            "branch": config.branch,
             "includedPaths": config.included_paths
         })
     return repositories
