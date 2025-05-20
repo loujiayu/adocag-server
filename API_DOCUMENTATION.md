@@ -100,6 +100,7 @@ Search and analyze scope scripts.
 ```json
 {
   "repository": "AdsAppsMT",  // Default: "AdsAppsMT"
+  "query": "image (ext:script)",     // Defailt: "(ext:script)"
   "branch": "master",         // Default: "master"
   "max_results": 1000,        // Default: 1000
   "stream_response": true,    // Default: true

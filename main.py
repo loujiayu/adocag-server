@@ -81,6 +81,7 @@ class SearchRequest(BaseModel):
     custom_prompt: Optional[str] = None
 
 class ScopeScriptSearchRequest(BaseModel):
+    query: str = "(ext:script)"
     repository: Optional[str] = "AdsAppsMT"
     branch: Optional[str] = "master"
     max_results: Optional[int] = 1000
@@ -174,7 +175,7 @@ async def search_scope_script(
     # Call the post method from ScopeSearchResource
     return await scope_search_resource.post(
         request=request,
-        search_text="(ext:script)",
+        search_text=search_request.query,
         repository=search_request.repository,
         branch=search_request.branch,
         max_results=search_request.max_results,
