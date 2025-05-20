@@ -11,6 +11,7 @@ class RepositorySearchConfig:
     included_paths: List[str] = None
     project: str = ""
     organization: str = ""
+    branch: str = "master"
 
     def __post_init__(self):
         if self.excluded_paths is None:
@@ -77,6 +78,7 @@ REPOSITORY_CONFIGS = {
         name="msnews-experiences",
         organization="msasg",
         project="ContentServices",
+        branch="main",
         search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
         excluded_paths=['test', 'undefined']
     ),
@@ -84,6 +86,7 @@ REPOSITORY_CONFIGS = {
         name="coreux-components",
         organization="msasg",
         project="ContentServices",
+        branch="main",
         search_prefix="(ext:js OR ext:ts OR ext:jsx OR ext:tsx)",
         excluded_paths=[]
     ),

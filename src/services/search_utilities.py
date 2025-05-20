@@ -143,7 +143,7 @@ class SearchUtilities:
             # Extract repository name, file path, and branch
             repository = result.repository.name if hasattr(result, 'repository') and hasattr(result.repository, 'name') else None
             file_path = result.path if hasattr(result, 'path') else None
-            branch = getattr(result, 'branch', 'master')
+            branch = getattr(result, 'branch', None)
             
             if not repository or not file_path:
                 # Skip this result if repository or file path is missing

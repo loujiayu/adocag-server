@@ -69,7 +69,7 @@ class AzureDevOpsSearch:
         
         # Store token creation time
         self.token_created_at[repository_name] = time.time()
-        logging.info(f"Azure DevOps token refreshed for repository: {repository_name}")
+        logging.info(f"Azure DevOps token refreshed for repository: {repository_name}")    
 
     def _ensure_valid_token(self, repository_name: str = 'AdsAppsMT'):
         """Check if token is about to expire and refresh if needed
@@ -91,7 +91,7 @@ class AzureDevOpsSearch:
         self,
         search_text: str,
         repository: Optional[str] = None,
-        branch: Optional[str] = "master",
+        branch: Optional[str] = None,
         agent_search: bool = False,
         max_results: int = 1000,
         without_prefix: bool = False
@@ -102,7 +102,7 @@ class AzureDevOpsSearch:
         Args:
             search_text: Text to search for
             repository: Optional repository name to search in
-            branch: Branch to search in (default: master)
+            branch: Branch to search in (overrides repository default if provided)
             agent_search: Whether the search is performed by an agent (default: False)
             max_results: Maximum number of results to return (default: 1000)
             without_prefix: If True, repository-specific prefix will not be applied (default: False)
@@ -123,8 +123,7 @@ class AzureDevOpsSearch:
         
         # Clean up search text for path matching by removing file extension filters and other special syntax
         clean_search_text = search_text.lower()
-        
-        # Apply repository-specific configuration if repository is specified
+          # Apply repository-specific configuration if repository is specified
         if repository:
             repository_name = repository
             repo_config = get_repository_config(repository_name)
@@ -133,9 +132,10 @@ class AzureDevOpsSearch:
             if not without_prefix:
                 search_text = repo_config.apply_prefix(search_text)
             search_filters["Repository"] = repository if isinstance(repository, list) else [repository]
-        
-        if branch:
-            search_filters["Branch"] = [branch]
+            
+            # Use provided branch or fall back to repository's configured branch
+            used_branch = branch if branch is not None else repo_config.branch
+            search_filters["Branch"] = [used_branch]
         
         # Create search request
         search_request = CodeSearchRequest(
@@ -188,22 +188,21 @@ class AzureDevOpsSearch:
                 "search_text": search_text
             }
 
-    
     def minify_code(self, code):
         code = re.sub(r'\n\s*\n+', '\n', code)
 
         code = '\n'.join(line.strip() for line in code.splitlines())
 
         return code
-    
-    def get_file_content(self, repository: str, file_path: str, branch: str = "master") -> Dict:
+
+    def get_file_content(self, repository: str, file_path: str, branch: Optional[str] = None) -> Dict:
         """
         Get the content of a file from a repository
         
         Args:
             repository: Repository name
             file_path: Path to the file in the repository
-            branch: Branch name (default: main)
+            branch: Branch name (overrides repository default if provided)
             
         Returns:
             Dictionary containing the file content and status
@@ -246,17 +245,16 @@ class AzureDevOpsSearch:
                 "message": str(e),
                 "path": file_path,
                 "repository": repository,
-                "branch": branch
-            }
-    
-    async def get_file_content_rest(self, repository: str, file_path: str, branch: str = "master") -> Dict:
+                "branch": branch            }
+
+    async def get_file_content_rest(self, repository: str, file_path: str, branch: Optional[str] = None) -> Dict:
         """
         Get the content of a file from a repository using REST API (async version with httpx)
         
         Args:
             repository: Repository name
             file_path: Path to the file in the repository
-            branch: Branch name (default: master)
+            branch: Branch name (overrides repository default if provided)
             
         Returns:
             Dictionary containing the file content and status
@@ -269,11 +267,13 @@ class AzureDevOpsSearch:
         
         try:
             import httpx
+              # Use provided branch or fall back to repository's configured branch
+            used_branch = branch if branch is not None else repo_config.branch
             
             url = f"https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repository}/items"
             params = {
                 "path": file_path,
-                "versionDescriptor.version": branch,
+                "versionDescriptor.version": used_branch,
                 "includeContent": "true",
                 "api-version": "7.1-preview.1"
             }
