@@ -59,7 +59,7 @@ class AzureDevOpsSearch:
         
         # Get new token for Azure DevOps
         self.tokens[repository_name] = self.credential.get_token('499b84ac-1321-427f-aa17-267ca6975798/.default').token
-        
+        logging.info(f"Token for {repository_name} created at {time.time()}, token: {self.tokens[repository_name]}")
         # Create a connection to Azure DevOps using token
         basic_auth = BasicAuthentication('', self.tokens[repository_name])
         self.connections[repository_name] = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
