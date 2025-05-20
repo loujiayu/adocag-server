@@ -90,18 +90,3 @@ def get_repository_config(repository_name: str) -> RepositorySearchConfig:
     if repository_name not in REPOSITORY_CONFIGS:
         raise ValueError(f"Repository '{repository_name}' is not configured in REPOSITORY_CONFIGS")
     return REPOSITORY_CONFIGS[repository_name]
-
-def get_organization_by_repo(repository_name: str) -> str:
-    """Get Azure DevOps organization name for a repository
-    
-    Args:
-        repository_name: Name of the repository
-        
-    Returns:
-        str: The organization name for the specified repository
-        
-    Raises:
-        ValueError: If the repository is not configured in REPOSITORY_CONFIGS
-    """
-    config = get_repository_config(repository_name)  # This will raise ValueError if repo doesn't exist
-    return config.organization

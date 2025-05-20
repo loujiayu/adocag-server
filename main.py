@@ -12,6 +12,7 @@ from src.services.search_utilities import SearchUtilities, SearchSource
 from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
 from src.resources.scopesearch import ScopeSearchResource
+from src.configs.repository_configs import REPOSITORY_CONFIGS
 import logging
 import platform
 import datetime
@@ -42,10 +43,7 @@ app.add_middleware(
 )
 
 # Initialize Azure DevOps client
-azure_devops_client = AzureDevOpsSearch(
-    organization=os.getenv('AZURE_DEVOPS_ORG'),
-    project=os.getenv('AZURE_DEVOPS_PROJECT')
-)
+azure_devops_client = AzureDevOpsSearch()
 
 # azure_devops_cosmos_client = AzureDevOpsSearch(
 #     organization="mscosmos",
@@ -123,7 +121,8 @@ async def home():    return {
             '/api/search/chat': 'Full content search endpoint',
             '/api/search/scope': 'Scope script search endpoint',
             '/api/chat': 'Streaming chat endpoint',
-            '/api/note': 'Note management endpoint'
+            '/api/note': 'Note management endpoint',
+            '/api/repositories': 'Supported repositories endpoint'
         },
         'status': 'online'
     }
@@ -234,7 +233,23 @@ async def delete_note(note_id: str, ai_service = Depends(get_ai_service)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Add route for API documentation
+# Add repository info endpoint
+@app.get("/api/repositories", tags=["Repositories"])
+async def get_repositories():
+    """Return list of supported repositories and their configurations"""
+    repositories = []
+    for repo_name, config in REPOSITORY_CONFIGS.items():
+        repositories.append({
+            "name": config.name,
+            "organization": config.organization,
+            "project": config.project,
+            "searchPrefix": config.search_prefix,
+            "excludedPaths": config.excluded_paths,
+            "includedPaths": config.included_paths
+        })
+    return repositories
+
+# API docs endpoint
 @app.get("/api/docs", tags=["Documentation"])
 async def get_docs(format: str = Query("html", description="Format to return docs in: 'html' or 'md'")):
     """Return API documentation in HTML or Markdown format"""

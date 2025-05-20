@@ -141,6 +141,7 @@ SSE events with:
 **POST** `/api/chat`
 
 Interactive chat with repository context and optional deep research.
+messages are sent in a structured format. Exact allignment with the [OpenAI API](https://platform.openai.com/docs/api-reference/chat/create)
 
 #### Request Body
 
@@ -148,7 +149,7 @@ Interactive chat with repository context and optional deep research.
 {
   "messages": [              // Required
     {
-      "role": "user|assistant",  // Required: either "user" or "assistant"
+      "role": "user|assistant",  // Required: either "user" or "assistant" or "system"
       "content": "message text"  // Required: the message content
     }
   ],
@@ -159,7 +160,7 @@ Interactive chat with repository context and optional deep research.
 | Field | Type | Default | Required | Description |
 |-------|------|---------|----------|-------------|
 | messages | array | - | Yes | Array of message objects |
-| messages[].role | string | - | Yes | Either "user" or "assistant" |
+| messages[].role | string | - | Yes | Either "user" or "assistant" or "system" |
 | messages[].content | string | - | Yes | The message text |
 | stream_response | boolean | true | No | Whether to stream the response |
 
