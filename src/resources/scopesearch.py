@@ -22,7 +22,6 @@ class ScopeSearchResource:
         """
         self.search_client: AzureDevOpsSearch = azure_devops_client
         # Initialize AI service
-        self.ai_service = AIServiceFactory.create_service({})
         self.azure_devops_cosmos_client = azure_devops_cosmos_client
         self.search_utilities = SearchUtilities(
             search_client=azure_devops_client,
@@ -69,6 +68,7 @@ class ScopeSearchResource:
             StreamingResponse or dict containing AI service's analysis of the search results
         """
         try:
+            self.ai_service = AIServiceFactory.create_service(request.query_params)
             # Call Azure DevOps search directly for scope script search
             search_results = self.search_client.search_code(
                 search_text=search_text,
