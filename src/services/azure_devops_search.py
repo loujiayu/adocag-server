@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from azure.devops.connection import Connection
 from azure.identity import ManagedIdentityCredential, DefaultAzureCredential, InteractiveBrowserCredential
 from msrest.authentication import BasicAuthentication
+from src.utils import is_raw_query
 from azure.devops.v7_0.search.models import CodeSearchRequest
 from azure.devops.v7_0.wiki.models import WikiPageCreateOrUpdateParameters, GitVersionDescriptor, WikiPagesBatchRequest
 from src.configs.repository_configs import get_repository_config
@@ -123,13 +124,18 @@ class AzureDevOpsSearch:
         
         # Clean up search text for path matching by removing file extension filters and other special syntax
         clean_search_text = search_text.lower()
+        
+        # Check if this is a raw query without special filters like path:, ext:, def:
+        is_raw = is_raw_query(clean_search_text)
+        logging.info(f"Query is raw (without filters): {is_raw}")
+        
           # Apply repository-specific configuration if repository is specified
         if repository:
             repository_name = repository
             repo_config = get_repository_config(repository_name)
             
             # Only apply prefix if without_prefix is False
-            if not without_prefix:
+            if not without_prefix and is_raw:
                 search_text = repo_config.apply_prefix(search_text)
             search_filters["Repository"] = repository if isinstance(repository, list) else [repository]
             
@@ -156,18 +162,15 @@ class AzureDevOpsSearch:
             # Filter results based on repository configuration
             filtered_results = []
             
-            for result in response.results:
-                if not repository:
-                    # Use default exclusions for non-repository-specific search
-                    if not any(excluded in result.path.lower() for excluded in ['test', 'proxy', 'proxies']):
-                        filtered_results.append(result)
-                else:
-                    # Use repository-specific configuration
+            if is_raw:
+                for result in response.results:
                     result_repo_name = result.repository.name if hasattr(result, 'repository') and hasattr(result.repository, 'name') else None
                     if result_repo_name:
                         repo_config = get_repository_config(result_repo_name)
                         if not repo_config.should_exclude_path(result.path, agent_search):
                             filtered_results.append(result)
+            else:
+                filtered_results = response.results
             
             # Sort results by prioritizing search text in path, then by content matches
             filtered_results.sort(

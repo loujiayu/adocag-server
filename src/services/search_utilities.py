@@ -3,6 +3,7 @@ import os
 from src.services.azure_devops_search import AzureDevOpsSearch
 import asyncio
 from src.services.cache_manager import CacheManager
+from src.utils import is_raw_query
 from pydantic import BaseModel
 
 class SearchSource(BaseModel):
@@ -244,7 +245,8 @@ class SearchUtilities:
             print(f"Skipping file {file_path}: max length already reached")
             return None
         
-        if with_rating:
+        is_raw = is_raw_query(search_query)
+        if with_rating and is_raw:
             # Use rating semaphore for rating operations
             async with self.rating_semaphore:
                 rate = await self.rate_file_content(content_result, search_query, rating_cache_key)
