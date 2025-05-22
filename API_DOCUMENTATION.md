@@ -1,4 +1,4 @@
-# Azure DevOps Search API Documentation
+# API Documentation
 
 API for searching Azure DevOps repositories and generating AI responses.
 
