@@ -49,27 +49,32 @@ class AzureDevOpsSearch:
             self.credential = DefaultAzureCredential()
             print(f"Using InteractiveBrowserCredential for {environment} environment")
 
+    def accept_token(self, repository_name: str, token: str):
+        """
+        Accept a token for authentication
+        
+        Args:
+            token: Token to accept
+        """
+        repo_config = get_repository_config(repository_name)
+        self.tokens[repository_name] = token
+        organization = repo_config.organization
+        basic_auth = BasicAuthentication('', self.tokens[repository_name])
+        self.connections[repository_name] = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
+        self.search_clients[repository_name] = self.connections[repository_name].clients.get_search_client()
+        self.token_created_at[repository_name] = time.time()
+        print("Token accepted")
+
     def _refresh_connection(self, repository_name: str):
         """Refresh the Azure DevOps token and connection for a specific repository
         
         Args:
             repository_name: Name of the repository to refresh connection for
         """
-        repo_config = get_repository_config(repository_name)
-        organization = repo_config.organization
-        
-        # Get new token for Azure DevOps
-        self.tokens[repository_name] = self.credential.get_token('499b84ac-1321-427f-aa17-267ca6975798/.default').token
-        logging.info(f"Token for {repository_name} created at {time.time()}, token: {self.tokens[repository_name]}")
-        # Create a connection to Azure DevOps using token
-        basic_auth = BasicAuthentication('', self.tokens[repository_name])
-        self.connections[repository_name] = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
-        
-        # Get search client
-        self.search_clients[repository_name] = self.connections[repository_name].clients.get_search_client()
-        
-        # Store token creation time
-        self.token_created_at[repository_name] = time.time()
+        token = self.credential.get_token('499b84ac-1321-427f-aa17-267ca6975798/.default').token
+
+        self.accept_token(repository_name, token)
+
         logging.info(f"Azure DevOps token refreshed for repository: {repository_name}")    
 
     def _ensure_valid_token(self, repository_name: str = 'AdsAppsMT'):
@@ -83,8 +88,8 @@ class AzureDevOpsSearch:
             self._refresh_connection(repository_name)
             return
             
-        # Refresh token if it's older than 45 minutes (before the typical 1 hour expiry)
-        if time.time() - self.token_created_at.get(repository_name, 0) > 45 * 60:
+        # Refresh token if it's older than 1 hour
+        if time.time() - self.token_created_at.get(repository_name, 0) > 60 * 60:
             logging.info(f"Token is about to expire for repository {repository_name}, refreshing...")
             self._refresh_connection(repository_name)
 
