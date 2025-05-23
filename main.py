@@ -92,6 +92,22 @@ class ScopeScriptSearchRequest(BaseModel):
 async def get_ai_service(request: Request):
     query_params = dict(request.query_params)
     return AIServiceFactory.create_service(query_params)
+    
+# Helper to extract auth token from request
+def extract_auth_token(request: Request) -> Optional[str]:
+    """
+    Extract the authentication token from the Authorization header
+    
+    Args:
+        request: The FastAPI request object
+    
+    Returns:
+        The token string if found, None otherwise
+    """
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header.replace("Bearer ", "")
+    return None
 
 # Health check endpoint
 @app.get("/api/health", tags=["Health"])
@@ -134,6 +150,15 @@ async def search_chat(
     search_request: SearchRequest,
     request: Request
 ):
+    # Extract token from Authorization header
+    token = extract_auth_token(request)
+    # Call accept_token if token exists for each repository in sources
+    if token and search_request.sources:
+        for source in search_request.sources:
+            if hasattr(source, 'repositories'):
+                for repository in source.repositories:
+                    azure_devops_client.accept_token(repository, token)
+    
     # Call the post method from DocumentSearchResource
     setattr(request, "json", lambda: search_request.dict())
     return await document_search_resource.post(request)
@@ -147,6 +172,14 @@ async def chat(
     is_deep_research: bool = Query(False, description="Whether to perform deep research"),
     temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses.")
 ):
+    # Extract token from Authorization header if repositories are specified
+    token = extract_auth_token(request)
+    if token and repositories:
+        # Split comma-separated repository names and apply token to each
+        repos = [repo.strip() for repo in repositories.split(",") if repo.strip()]
+        for repo in repos:
+            azure_devops_client.accept_token(repo, token)
+            
     # Add query parameters to request object for ChatResource compatibility
     setattr(request, "args", {
         "repositories": repositories,
@@ -172,6 +205,12 @@ async def search_scope_script(
     request: Request,
     search_request: ScopeScriptSearchRequest
 ):
+    # Extract token from Authorization header
+    token = extract_auth_token(request)
+    # Call accept_token if token exists
+    if token and search_request.repository:
+        azure_devops_client.accept_token(search_request.repository, token)
+    
     # Call the post method from ScopeSearchResource
     return await scope_search_resource.post(
         request=request,

@@ -9,6 +9,10 @@ This API provides an AI-powered search and chat interface for Azure DevOps repos
 1. Use `/api/search` or `/api/search/scope` to retrieve relevant content
 2. Feed the search results into `/api/chat` as user messages
 3. Get AI-powered analysis using GPT-4.1 model
+4. All the apis accept api_provider, azure_api_key, azure_endpoint, azure_model as query parameters
+  exp: https://adocag2-cmbnhrc4hncze7hd.eastus2-01.azurewebsites.net/api/search/scope?api_provider=Azure+OpenAI&azure_api_key=xxx&azure_endpoint=https%3A%2F%2Fchezh-m78q5dlz-japaneast.openai.azure.com&azure_model=gpt-4.1
+5. The Default Azure devops token could access codes under Bing_Ads project, if other projects are needed, please provide the token in the header.
+   exp: Authorization: Bearer<base64 encoded token>
 
 ### Workflow Example
 
