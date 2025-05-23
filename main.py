@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from src.services.azure_devops_search import AzureDevOpsSearch
@@ -41,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+
+# OAuth2 bearer token scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Initialize Azure DevOps client
 azure_devops_client = AzureDevOpsSearch()
@@ -92,22 +96,6 @@ class ScopeScriptSearchRequest(BaseModel):
 async def get_ai_service(request: Request):
     query_params = dict(request.query_params)
     return AIServiceFactory.create_service(query_params)
-    
-# Helper to extract auth token from request
-def extract_auth_token(request: Request) -> Optional[str]:
-    """
-    Extract the authentication token from the Authorization header
-    
-    Args:
-        request: The FastAPI request object
-    
-    Returns:
-        The token string if found, None otherwise
-    """
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.replace("Bearer ", "")
-    return None
 
 # Health check endpoint
 @app.get("/api/health", tags=["Health"])
@@ -148,10 +136,9 @@ async def home():    return {
 @app.post("/api/search", tags=["Search"])
 async def search_chat(
     search_request: SearchRequest,
-    request: Request
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme)
 ):
-    # Extract token from Authorization header
-    token = extract_auth_token(request)
     # Call accept_token if token exists for each repository in sources
     if token and search_request.sources:
         for source in search_request.sources:
@@ -168,12 +155,12 @@ async def search_chat(
 async def chat(
     chat_request: ChatRequest,
     request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
     repositories: str = Query("", description="Comma-separated list of repositories"),
     is_deep_research: bool = Query(False, description="Whether to perform deep research"),
     temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses.")
 ):
-    # Extract token from Authorization header if repositories are specified
-    token = extract_auth_token(request)
+    # Apply token if repositories are specified
     if token and repositories:
         # Split comma-separated repository names and apply token to each
         repos = [repo.strip() for repo in repositories.split(",") if repo.strip()]
@@ -203,10 +190,9 @@ async def chat(
 @app.post("/api/search/scope", tags=["Search"])
 async def search_scope_script(
     request: Request,
-    search_request: ScopeScriptSearchRequest
+    search_request: ScopeScriptSearchRequest,
+    token: Optional[str] = Depends(oauth2_scheme)
 ):
-    # Extract token from Authorization header
-    token = extract_auth_token(request)
     # Call accept_token if token exists
     if token and search_request.repository:
         azure_devops_client.accept_token(search_request.repository, token)
