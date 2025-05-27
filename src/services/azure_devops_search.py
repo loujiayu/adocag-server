@@ -63,7 +63,7 @@ class AzureDevOpsSearch:
         self.connections[repository_name] = Connection(base_url=f"https://dev.azure.com/{organization}", creds=basic_auth)
         self.search_clients[repository_name] = self.connections[repository_name].clients.get_search_client()
         self.token_created_at[repository_name] = time.time()
-        print("Token accepted")
+        print(f"Token accepted, {token}")
 
     def _refresh_connection(self, repository_name: str):
         """Refresh the Azure DevOps token and connection for a specific repository

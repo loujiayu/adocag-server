@@ -14,6 +14,7 @@ from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
 from src.resources.scopesearch import ScopeSearchResource
 from src.configs.repository_configs import REPOSITORY_CONFIGS
+from src.middleware import ReferrerCheckMiddleware, verify_ui_referer, is_request_from_ui, ALLOWED_UI_ORIGINS
 import logging
 import platform
 import datetime
@@ -42,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+
+# Add referer check middleware
+app.add_middleware(ReferrerCheckMiddleware)
 
 # OAuth2 bearer token scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -137,10 +141,11 @@ async def home():    return {
 async def search_chat(
     search_request: SearchRequest,
     request: Request,
-    token: Optional[str] = Depends(oauth2_scheme)
+    token: Optional[str] = Depends(oauth2_scheme),
+    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
 ):
-    # Call accept_token if token exists for each repository in sources
-    if token and search_request.sources:
+    # Call accept_token only if token exists and request is not from UI
+    if token and search_request.sources and not is_request_from_ui(request):
         for source in search_request.sources:
             if hasattr(source, 'repositories'):
                 for repository in source.repositories:
@@ -158,10 +163,11 @@ async def chat(
     token: Optional[str] = Depends(oauth2_scheme),
     repositories: str = Query("", description="Comma-separated list of repositories"),
     is_deep_research: bool = Query(False, description="Whether to perform deep research"),
-    temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses.")
+    temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses."),
+    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
 ):
-    # Apply token if repositories are specified
-    if token and repositories:
+    # Apply token if repositories are specified and request is not from UI
+    if token and repositories and not is_request_from_ui(request):
         # Split comma-separated repository names and apply token to each
         repos = [repo.strip() for repo in repositories.split(",") if repo.strip()]
         for repo in repos:
@@ -191,10 +197,11 @@ async def chat(
 async def search_scope_script(
     request: Request,
     search_request: ScopeScriptSearchRequest,
-    token: Optional[str] = Depends(oauth2_scheme)
+    token: Optional[str] = Depends(oauth2_scheme),
+    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
 ):
-    # Call accept_token if token exists
-    if token and search_request.repository:
+    # Call accept_token if token exists and request is not from UI
+    if token and search_request.repository and not is_request_from_ui(request):
         azure_devops_client.accept_token(search_request.repository, token)
     
     # Call the post method from ScopeSearchResource
