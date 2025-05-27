@@ -73,7 +73,7 @@ def is_request_from_ui(request: Request) -> bool:
         bool: True if the request is from a whitelisted UI, False otherwise
     """
     referer = request.headers.get("referer")
-    logging.debug(f"Referer header: {referer}")
+    logging.info(f"Referer header: {referer}")
     if not referer:
         return False
         
