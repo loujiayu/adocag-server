@@ -14,7 +14,7 @@ from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
 from src.resources.scopesearch import ScopeSearchResource
 from src.configs.repository_configs import REPOSITORY_CONFIGS
-from src.middleware import ReferrerCheckMiddleware, verify_ui_referer, is_request_from_ui, ALLOWED_UI_ORIGINS
+from src.middleware import ReferrerCheckMiddleware, is_request_from_ui, ALLOWED_UI_ORIGINS
 import logging
 import platform
 import datetime
@@ -87,7 +87,7 @@ class SearchRequest(BaseModel):
     sources: List[SearchSource]
     stream_response: Optional[bool] = True
     custom_prompt: Optional[str] = None
-
+2
 class ScopeScriptSearchRequest(BaseModel):
     query: str = "(ext:script)"
     repository: Optional[str] = "AdsAppsMT"
@@ -108,11 +108,6 @@ async def health_check():
         'status': 'healthy',
         'timestamp': datetime.datetime.now().isoformat(),
         'service': 'server-api',
-        'azure_devops_client': {
-            'organization': azure_devops_client.organization,
-            'project': azure_devops_client.project,
-            'resource_area_identifier': azure_devops_client.search_client.resource_area_identifier
-        },
         'environment': {
             'python_version': platform.python_version(),
             'system': platform.system(),
@@ -141,8 +136,7 @@ async def home():    return {
 async def search_chat(
     search_request: SearchRequest,
     request: Request,
-    token: Optional[str] = Depends(oauth2_scheme),
-    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
+    token: Optional[str] = Depends(oauth2_scheme)
 ):
     # Call accept_token only if token exists and request is not from UI
     if token and search_request.sources and not is_request_from_ui(request):
@@ -165,7 +159,6 @@ async def chat(
     repositories: str = Query("", description="Comma-separated list of repositories"),
     is_deep_research: bool = Query(False, description="Whether to perform deep research"),
     temperature: Optional[float] = Query(0.7, ge=0.0, le=2.0, description="Model temperature, controls randomness. Higher values produce more creative responses."),
-    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
 ):
     # Apply token if repositories are specified and request is not from UI
     if token and repositories and not is_request_from_ui(request):
@@ -199,7 +192,6 @@ async def search_scope_script(
     request: Request,
     search_request: ScopeScriptSearchRequest,
     token: Optional[str] = Depends(oauth2_scheme),
-    _: None = Depends(verify_ui_referer)  # Add UI referer check dependency
 ):
     # Call accept_token if token exists and request is not from UI
     if token and search_request.repository and not is_request_from_ui(request):
