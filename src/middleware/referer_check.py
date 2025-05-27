@@ -120,7 +120,6 @@ def is_non_production_environment() -> bool:
     Returns:
         bool: True if the environment is not production, False otherwise
     """
-    return False
     environment = os.environ.get("ENVIRONMENT", "development").lower()
     if environment != "production":
         logging.info(f"Non-production environment ({environment}): allowing request as UI")
