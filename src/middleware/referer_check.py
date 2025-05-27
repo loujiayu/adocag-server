@@ -65,14 +65,15 @@ class ReferrerCheckMiddleware(BaseHTTPMiddleware):
                     media_type="application/json"
                 )
         else:
-            # Not from a UI (API call from a script/server)
-            # Non-UI requests are blocked in production
-            logging.warning("Non-UI request blocked")
-            return Response(
-                content='{"detail":"Access denied for non-UI requests"}',
-                status_code=403,
-                media_type="application/json"
-            )
+            if not token_payload:
+                # No token found, block the request
+                logging.warning("Request blocked - no token found")
+                return Response(
+                    content='{"detail":"Authentication required"}',
+                    status_code=401,
+                    media_type="application/json"
+                )
+            return await call_next(request)
 
 # Utility function to check if request is from a UI
 def is_request_from_ui(request: Request) -> bool:
@@ -119,6 +120,7 @@ def is_non_production_environment() -> bool:
     Returns:
         bool: True if the environment is not production, False otherwise
     """
+    return False
     environment = os.environ.get("ENVIRONMENT", "development").lower()
     if environment != "production":
         logging.info(f"Non-production environment ({environment}): allowing request as UI")
