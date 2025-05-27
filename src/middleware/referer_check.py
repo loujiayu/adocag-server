@@ -17,6 +17,7 @@ class ReferrerCheckMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
         
+        logging.info(f"Processing request for path: {request}")
         # Use the is_request_from_ui function to check if the request is from a whitelisted UI
         if is_request_from_ui(request):
             # Valid referer, proceed with request
