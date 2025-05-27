@@ -146,6 +146,7 @@ async def search_chat(
 ):
     # Call accept_token only if token exists and request is not from UI
     if token and search_request.sources and not is_request_from_ui(request):
+        logging.info(f"Applying token to repositories: {search_request.sources}")
         for source in search_request.sources:
             if hasattr(source, 'repositories'):
                 for repository in source.repositories:
