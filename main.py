@@ -133,22 +133,10 @@ async def health_check():
         }
     }
 
-# # Home endpoint
-# @app.get("/", tags=["Home"])
-# async def home():    return {
-#         'message': 'Welcome to the API server',
-#         'endpoints': {
-#             '/api/health': 'Health check endpoint',
-#             '/api/search/filelist': 'File list endpoint',
-#             '/api/search/chat': 'Full content search endpoint',
-#             '/api/search/scope': 'Scope script search endpoint',
-#             '/api/chat': 'Streaming chat endpoint',
-#             '/api/share': 'Create and retrieve shared code snippets',
-#             '/api/note': 'Note management endpoint',
-#             '/api/repositories': 'Supported repositories endpoint'
-#         },
-#         'status': 'online'
-#     }
+# Home endpoint - Inaccessible
+@app.get("/", tags=["Home"])
+async def home():
+    raise HTTPException(status_code=403, detail="Access forbidden")
 
 # Search endpoint - using DocumentSearchResource from search.py
 @app.post("/api/search", tags=["Search"])
