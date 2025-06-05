@@ -1,4 +1,5 @@
 import os
+import uuid
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from src.services.azure_devops_search import AzureDevOpsSearch
 from src.services.ai_service_factory import AIServiceFactory
 from src.services.agents import AIAgent
 from src.services.search_utilities import SearchUtilities, SearchSource
+from src.services.cache_manager import CacheManager
 from src.resources.search import DocumentSearchResource
 from src.resources.chat import ChatResource
 from src.resources.scopesearch import ScopeSearchResource
@@ -67,6 +69,9 @@ chat_resource = ChatResource(azure_devops_client=azure_devops_client)
 # Initialize ScopeSearchResource
 scope_search_resource = ScopeSearchResource(azure_devops_client=azure_devops_client, azure_devops_cosmos_client=None)
 
+# Initialize CacheManager for shared code functionality
+cache_manager = CacheManager()
+
 # Define request models
 class MessageItem(BaseModel):
     role: str
@@ -96,6 +101,19 @@ class ScopeScriptSearchRequest(BaseModel):
     stream_response: Optional[bool] = True
     custom_prompt: Optional[str] = None
 
+class ShareCodeRequest(BaseModel):
+    chatSession: Optional[str] = None
+
+class ShareCodeResponse(BaseModel):
+    status: str
+    key: str
+    message: Optional[str] = None
+
+class GetSharedCodeResponse(BaseModel):
+    status: str
+    chatSession: Optional[str] = None
+    message: Optional[str] = None
+
 # Helper to get AI service from request
 async def get_ai_service(request: Request):
     query_params = dict(request.query_params)
@@ -115,21 +133,22 @@ async def health_check():
         }
     }
 
-# Home endpoint
-@app.get("/", tags=["Home"])
-async def home():    return {
-        'message': 'Welcome to the API server',
-        'endpoints': {
-            '/api/health': 'Health check endpoint',
-            '/api/search/filelist': 'File list endpoint',
-            '/api/search/chat': 'Full content search endpoint',
-            '/api/search/scope': 'Scope script search endpoint',
-            '/api/chat': 'Streaming chat endpoint',
-            '/api/note': 'Note management endpoint',
-            '/api/repositories': 'Supported repositories endpoint'
-        },
-        'status': 'online'
-    }
+# # Home endpoint
+# @app.get("/", tags=["Home"])
+# async def home():    return {
+#         'message': 'Welcome to the API server',
+#         'endpoints': {
+#             '/api/health': 'Health check endpoint',
+#             '/api/search/filelist': 'File list endpoint',
+#             '/api/search/chat': 'Full content search endpoint',
+#             '/api/search/scope': 'Scope script search endpoint',
+#             '/api/chat': 'Streaming chat endpoint',
+#             '/api/share': 'Create and retrieve shared code snippets',
+#             '/api/note': 'Note management endpoint',
+#             '/api/repositories': 'Supported repositories endpoint'
+#         },
+#         'status': 'online'
+#     }
 
 # Search endpoint - using DocumentSearchResource from search.py
 @app.post("/api/search", tags=["Search"])
@@ -204,9 +223,59 @@ async def search_scope_script(
         repository=search_request.repository,
         branch=search_request.branch,
         max_results=search_request.max_results,
-        stream_response=search_request.stream_response,
-        custom_prompt=search_request.custom_prompt
+        stream_response=search_request.stream_response,        custom_prompt=search_request.custom_prompt
     )
+
+# Share endpoints
+@app.post("/api/share", tags=["Share"], response_model=ShareCodeResponse, status_code=201)
+async def create_shared_code(share_request: ShareCodeRequest):
+    """Create a shared code snippet and return a key to access it"""
+    try:
+        # Generate a unique key for the shared code
+        share_key = str(uuid.uuid4())
+        
+        # Prepare the data to store
+        share_data = share_request.chatSession
+        
+        # Store in cache with 30 days TTL (2,592,000 seconds)
+        cache = cache_manager.get_cache()
+        success = await cache.set(f"share:{share_key}", share_data, ttl=259200)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to store shared code")
+        
+        return ShareCodeResponse(
+            status="success", 
+            key=share_key,
+            message="Code shared successfully"
+        )
+        
+    except Exception as e:
+        logging.error(f"Error creating shared code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating shared code: {str(e)}")
+
+@app.get("/api/share", tags=["Share"], response_model=GetSharedCodeResponse)
+async def get_shared_code(key: str = Query(..., description="Shared code key")):
+    """Retrieve a shared code snippet by its key"""
+    try:
+        # Retrieve from cache
+        cache = cache_manager.get_cache()
+        share_data = await cache.get(f"share:{key}")
+        
+        if share_data is None:
+            return GetSharedCodeResponse(
+                status="error",
+                message="Shared code not found or expired"
+            )
+        
+        return GetSharedCodeResponse(
+            status="success",
+            chatSession=share_data
+        )
+        
+    except Exception as e:
+        logging.error(f"Error retrieving shared code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving shared code: {str(e)}")
 
 # Note endpoints
 @app.get("/api/note", tags=["Notes"])
