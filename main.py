@@ -32,7 +32,7 @@ load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Azure DevOps Search API",
+    title="Azure DevOps Search API2",
     description="API for searching Azure DevOps repositories and generating AI responses",
     version="1.0.0",
 )
