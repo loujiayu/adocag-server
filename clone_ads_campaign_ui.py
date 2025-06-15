@@ -51,7 +51,7 @@ def clone_ads_campaign_ui(target_dir=None, client_id=None):
             if client_id:
                 credential = ManagedIdentityCredential(client_id=client_id)
             else:
-                credential = DefaultAzureCredential()
+                credential = ManagedIdentityCredential(client_id=os.getenv('CLIENT_ID'))
                 
             # Azure DevOps resource scope
             token = credential.get_token("499b84ac-1321-427f-aa17-267ca6975798/.default")
@@ -69,7 +69,7 @@ def clone_ads_campaign_ui(target_dir=None, client_id=None):
         os.makedirs(target_dir, exist_ok=True)
         
         # Clone the repository
-        logger.info(f"Cloning AdsAppsCampaignUI repository to {target_dir}...")
+        logger.info(f"Cloning AdsAppsCampaignUI repository to {target_dir}..., git_url={git_url})")
         result = subprocess.run(
             ["git", "clone", git_url, target_dir],
             check=True,
